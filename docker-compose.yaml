@@ -18,10 +18,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8086:8086"
-  # test-api:
-  #   image: songhui/inswitch-test-api:${TAG:-latest}
-  #   build:
-  #     context: ./test-api
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "8001:8001"
+  test-api:
+    image: songhui/inswitch-test-api:${TAG:-latest}
+    build:
+      context: ./test-api
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"

@@ -34,9 +34,44 @@ Import example:
 import sys
 sys.path.append("/workspace/script")
 
+from util import generate_deployment_plans
 from util import get_deployable_services_basic
 from util import get_service_env_schema
 from util import is_service_deployed
+```
+
+### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
+
+Purpose:
+
+- Generate all deployment plans based on the fixed services and service variants.
+- Keep the full canonical set of deployment alternatives internally, but only show a shortlist of up to 4 alternatives to the user (show the list of instances for these alternative plans, including full list of env vars for each instance).
+- The planner must be driven only by the actual selected service env values that were resolved from the user intent; it must never invent default object types, zones, or fallback scenarios.
+
+Input:
+- `fixed_services`: list of services that must be included in every plan
+- `service_variants`: list of service variants to consider for deployment
+
+No-default rule:
+
+- Never populate `OBJECT_TYPE_FILTER`, `ZONES_OF_INTEREST`, or any equivalent object/zone inputs from a hard-coded fallback list.
+- If the selected service env data does not contain real object types and zone values, return an empty plan set rather than generating a fake scenario.
+- The planner should only generate alternatives from actual resolved service variants and actual env values.
+
+Output JSON shape:
+
+```json
+{
+  "plans": [
+    {
+      "plan_name": "Alternative 1",
+      "services": [
+        {"service_name": "service-a", "action": "new_instance", "env_vars": {"KEY_1": "value1"}},
+        {"service_name": "service-b", "action": "new_instance", "env_vars": {"KEY_2": "value2"}}
+      ]
+    }
+  ]
+}
 ```
 
 ### `get_deployable_services_basic(service_endpoint: str) -> dict`
@@ -142,7 +177,7 @@ Workflow:
 3. Resolve the dependency graph and generate a list of services. For each of these services:
 
 - Build env plan: Call `get_service_env_schema(service_endpoint, service_name)` from `/workspace/script/util.py`, then use the metadata to fill env values based on user intent, defaults, and common sense. If key required env values are not resolvable, ask user to provide them before proceeding.
-- Show the deployment plan (in a concise way), and ask user to confirm continue.
+<!-- 2. Describe the parsed intent details including the zone IDs, the object types, and the env vars. Ask user to confirm before proceeding to step 3. If the user wants to change any of the parsed details, allow them to do so before proceeding. -->
 
 3.5. **Spatial reasoning (conditional).** If the selected service(s) accept zone-typed env vars (e.g. `FROM_ZONE`, `TO_ZONE`, `CROSSWALK_ZONE`, `APPROACH_ZONES`, `ZONES_OF_INTEREST`) AND the user intent does not contain canonical zone IDs (matching `^[LCISBE]+\d+_`), delegate to the `gate-spatial-reasoning` sub-agent.
 
@@ -150,8 +185,66 @@ Workflow:
    - Pass the original user intent verbatim.
    - The sub-agent returns a JSON object mapping spatial roles to canonical zone IDs.
    - If the sub-agent returns ambiguous candidates, surface them to the user as a single multiple-choice question instead of asking for raw zone IDs.
-   - Use the resolved zone IDs to fill the env plan in step 4.
-5. For each service in the generated list, check if an instance with matching env is already deployed:
+   - Use the resolved zone IDs in step 3.
+
+3a. Before calling `generate_deployment_plans(fixed_services, service_variants)`, convert the user-facing intent selections into the exact planner payload that the function expects.
+
+   - The values already shown to the user are the source of truth: extract the actual object-type selections and the actual zone selections from those resolved intent values. If the intent was resolved by the `gate-spatial-reasoning` sub-agent, use the resolved zone IDs.
+   - Build `service_variants` as a list of service entries whose `env_vars` contain the exact selected keys, for example:
+     ```python
+     service_variants = [
+         {
+             "service_name": "object-in-zone-detection",
+             "env_vars": {
+                 "OBJECT_TYPE_FILTER": "PERSON",
+                 "ZONES_OF_INTEREST": "C5_W"
+             }
+         },
+         {
+             "service_name": "object-in-zone-detection",
+             "env_vars": {
+                 "OBJECT_TYPE_FILTER": "TRUCK,CAR,TWO-WHEELER,UNKNOWN",
+                 "ZONES_OF_INTEREST": "L1_N_WS,L2_N_S"
+             }
+         }
+     ]
+     ```
+   - Do not invent values, do not use defaults, and do not re-derive from a generic template when the actual intent values are already visible.
+   - If the intent has not produced actual object-type and zone selections, stop and return an empty plan set instead of calling the planner with placeholders.
+
+3b. Generate all deployment plans using `generate_deployment_plans(fixed_services, service_variants)` from `/workspace/script/util.py`. Do not recommend one over the other.
+
+Background rule: build the full canonical set internally from the actual selected service instances and their resolved env values only. Do not create a plan from defaults, synthetic object types, or synthetic zones. If the selected service env data does not contain a real object-type set and a real zone set, do not generate a fake scenario; keep the plan set empty and report that the required intent-driven inputs are missing.
+
+- For `object_in_zone_detection`, enumerate the full canonical set of alternatives internally, including every valid combination of object-type subsets and zone subsets that are actually selected from the service env configuration.
+- Preserve the complete internal set of valid plans, do not collapse to a single plan, and do not recommend one over the other.
+- When you present the result to the user, if more than four alternatives exist, show 4 user-facing alternatives, and explicitly label them as a shortlist drawn from the full valid set.
+- If there are more than 4 plans generated, present 4 of the alternative plans to the user. Keep the complete canonical set internally, and only show the shortlist in the user-facing response. Ask the user whether they would like to investigate which of the plans has the best performance. If yes, tell them that this function is currently a work-in-progress and ask which of the four alternatives they would like to proceed with. If no, ask them to select one of the four alternatives to proceed.
+- If there is only one valid plan, tell that to the user and proceed to step 4.
+- If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
+- The internal set must remain complete.
+- The output should be a structure like:
+  ```json
+  {
+    "plans": [
+      {
+        "plan_name": "Alternative 1",
+        "services": [
+          {"service_name": "object_in_zone_detection", "action": "new_instance", "env_vars": {"OBJECT_TYPE_FILTER": "PERSON", "ZONES_OF_INTEREST": "C5_W"}},
+          {"service_name": "object_in_zone_detection", "action": "new_instance", "env_vars": {"OBJECT_TYPE_FILTER": "CAR,TRUCK,TWO-WHEELER", "ZONES_OF_INTEREST": "L1_N_WS,L2_N_S"}}
+        ]
+      }
+    ]
+  }
+  ```
+
+
+<!-- 4. Resolve the dependency graph for the selected deployment plan and generate a list of services. For each of these services:
+
+- Build env plan: Call `get_service_env_schema(service_endpoint, service_name)` from `/workspace/script/util.py`, then use the metadata to fill env values based on user intent, defaults, and common sense. If key required env values are not resolvable, ask user to provide them before proceeding.
+- Show the deployment plan (in a concise way), and ask user to confirm continue. -->
+
+5. For each service in the selected plan, check if an instance with matching env is already deployed:
 
 - Find a running instance for the service and expected env values: Call `is_service_deployed(service_endpoint, expected)` from `/workspace/script/util.py`. Only include the essentional variables into the expected dict - ignore those with default values, those you are not certain about, and those related to `KAFKA`. If no instance is found, add the current service to `to_deploy` in post-order.
 

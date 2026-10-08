@@ -25,7 +25,9 @@ Public API:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List
+
+CONTEXT_COMPACTION_LIMIT = 12000
 
 from tracing import compute_llm_cost, start_span
 
@@ -127,9 +129,7 @@ class AgentTurnRunner:
         agent.last_response_id = response.id
         return _extract_text(response) or "(no response)"
 
-    def process_user_input(
-        self, manager: AgentManager, user_input: str
-    ) -> str:
+    def process_user_input(self, manager: AgentManager, user_input: str) -> str:
         """Top-level entry: handle session commands, lazy-load the
         captain's SKILL.md if needed, then run a captain turn.
 
@@ -342,15 +342,66 @@ class AgentTurnRunner:
                 {
                     "type": "function_call_output",
                     "call_id": call_id,
-                    "output": json.dumps(result),
+                    "output": json.dumps(_compact_tool_output(result)),
                 }
             )
         return tool_outputs
 
 
+def _compact_tool_output(result: Any) -> Any:
+    """Reduce oversized tool outputs before sending them back to the model.
+
+    Large plan sets can exceed the model context window when fed back during tool
+    follow-up calls. Keep only compact summary metadata and a short preview for
+    the next model turn.
+    """
+    if not isinstance(result, dict):
+        return result
+
+    serialized = json.dumps(result, ensure_ascii=True, sort_keys=True)
+    if len(serialized) <= CONTEXT_COMPACTION_LIMIT:
+        return result
+
+    compact: Dict[str, Any] = {
+        "summary": {
+            "truncated": True,
+            "original_size_chars": len(serialized),
+        }
+    }
+
+    if "plans" in result and isinstance(result["plans"], list):
+        plans = result["plans"]
+        compact["summary"]["total_plans"] = len(plans)
+        compact["summary"]["plan_names"] = [
+            item.get("plan_name") for item in plans[:3] if isinstance(item, dict)
+        ]
+        compact["plans"] = [
+            {
+                "plan_name": item.get("plan_name"),
+                "service_count": len(item.get("services", []))
+                if isinstance(item, dict)
+                else 0,
+            }
+            for item in plans[:2]
+            if isinstance(item, dict)
+        ]
+
+    if "services" in result and isinstance(result["services"], list):
+        compact["services"] = result["services"][:3]
+
+    if "matched_instance" in result:
+        compact["matched_instance"] = result["matched_instance"]
+
+    if "error" in result:
+        compact["error"] = result["error"]
+
+    return compact
+
+
 # ---------------------------------------------------------------------------
 # Response parsing helpers (no state — kept as module-level functions)
 # ---------------------------------------------------------------------------
+
 
 def _extract_tool_calls(response: Any) -> List[Any]:
     calls = []
