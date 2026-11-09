@@ -348,12 +348,57 @@ class AgentTurnRunner:
         return tool_outputs
 
 
+def _reduce_service(service: Any) -> Any:
+    """Keep only the fields the service-selection step reads."""
+    if not isinstance(service, dict):
+        return service
+    reduced = {
+        "name": service.get("name"),
+        "description": service.get("description"),
+        "dependencies": service.get("dependencies", []) or [],
+    }
+    return {key: value for key, value in reduced.items() if value is not None}
+
+
+def _reduce_instance(instance: Any) -> Any:
+    """Keep only the fields the dedup/status steps read."""
+    if not isinstance(instance, dict):
+        return instance
+    reduced = {
+        "instance_name": instance.get("instance_name"),
+        "service_name": instance.get("service_name"),
+        "deployment_status": instance.get("deployment_status"),
+        "ready": instance.get("ready"),
+        "env_vars": instance.get("env_vars") or {},
+    }
+    return {key: value for key, value in reduced.items() if value is not None}
+
+
+def _fit_items(items: List[Any], budget: int) -> tuple[List[Any], int]:
+    """Take as many leading items as fit in ``budget`` characters.
+
+    Returns the kept items and how many were left out, so the caller can say
+    so explicitly instead of silently shortening a list.
+    """
+    kept: List[Any] = []
+    used = 2  # the enclosing [] of the JSON array
+    for index, item in enumerate(items):
+        encoded = len(json.dumps(item, ensure_ascii=True, sort_keys=True)) + 1
+        if used + encoded > budget and kept:
+            return kept, len(items) - index
+        used += encoded
+        kept.append(item)
+    return kept, 0
+
+
 def _compact_tool_output(result: Any) -> Any:
     """Reduce oversized tool outputs before sending them back to the model.
 
-    Large plan sets can exceed the model context window when fed back during tool
-    follow-up calls. Keep only compact summary metadata and a short preview for
-    the next model turn.
+    Large plan sets and real k8s-manager catalogue/status payloads can exceed
+    the model context window when fed back during tool follow-up calls.
+
+    Lists are reduced field-by-field first and only then shortened. 
+    Whenever entries are left out, the count is reported in ``summary``.
     """
     if not isinstance(result, dict):
         return result
@@ -362,41 +407,60 @@ def _compact_tool_output(result: Any) -> Any:
     if len(serialized) <= CONTEXT_COMPACTION_LIMIT:
         return result
 
-    compact: Dict[str, Any] = {
-        "summary": {
-            "truncated": True,
-            "original_size_chars": len(serialized),
-        }
+    summary: Dict[str, Any] = {
+        "truncated": True,
+        "original_size_chars": len(serialized),
     }
-
-    if "plans" in result and isinstance(result["plans"], list):
-        plans = result["plans"]
-        compact["summary"]["total_plans"] = len(plans)
-        compact["summary"]["plan_names"] = [
-            item.get("plan_name") for item in plans[:3] if isinstance(item, dict)
-        ]
-        compact["plans"] = [
-            {
-                "plan_name": item.get("plan_name"),
-                "service_count": len(item.get("services", []))
-                if isinstance(item, dict)
-                else 0,
-            }
-            for item in plans[:2]
-            if isinstance(item, dict)
-        ]
-
-    if "services" in result and isinstance(result["services"], list):
-        compact["services"] = result["services"][:3]
-
-    if "matched_instance" in result:
-        compact["matched_instance"] = result["matched_instance"]
+    compact: Dict[str, Any] = {"summary": summary}
 
     if "error" in result:
         compact["error"] = result["error"]
 
-    return compact
+    if "matched_instance" in result:
+        compact["matched_instance"] = _reduce_instance(result["matched_instance"])
 
+    def remaining_budget() -> int:
+        used = len(json.dumps(compact, ensure_ascii=True, sort_keys=True))
+        return max(CONTEXT_COMPACTION_LIMIT - used - 256, 512)
+
+    if isinstance(result.get("plans"), list):
+        plans = result["plans"]
+        summary["total_plans"] = len(plans)
+        summary["plan_names"] = [
+            item.get("plan_name") for item in plans[:3] if isinstance(item, dict)
+        ]
+        previews = [
+            {
+                "plan_name": item.get("plan_name"),
+                "service_count": len(item.get("services", [])),
+            }
+            for item in plans
+            if isinstance(item, dict)
+        ]
+        kept, omitted = _fit_items(previews, remaining_budget())
+        compact["plans"] = kept
+        if omitted:
+            summary["plans_omitted"] = omitted
+
+    if isinstance(result.get("services"), list):
+        services = result["services"]
+        summary["total_services"] = len(services)
+        reduced = [_reduce_service(item) for item in services]
+        kept, omitted = _fit_items(reduced, remaining_budget())
+        compact["services"] = kept
+        if omitted:
+            summary["services_omitted"] = omitted
+
+    if isinstance(result.get("instances"), list):
+        instances = result["instances"]
+        summary["total_instances"] = len(instances)
+        reduced = [_reduce_instance(item) for item in instances]
+        kept, omitted = _fit_items(reduced, remaining_budget())
+        compact["instances"] = kept
+        if omitted:
+            summary["instances_omitted"] = omitted
+
+    return compact
 
 # ---------------------------------------------------------------------------
 # Response parsing helpers (no state — kept as module-level functions)

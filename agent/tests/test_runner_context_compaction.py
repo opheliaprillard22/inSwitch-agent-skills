@@ -30,7 +30,10 @@ class RunnerContextCompactionTests(unittest.TestCase):
         self.assertIn("summary", compact)
         self.assertEqual(compact["summary"]["total_plans"], 59)
         self.assertLess(len(str(compact)), 12000)
-        self.assertLess(len(compact["plans"]), len(big_payload["plans"]))
+        self.assertLess(len(str(compact["plans"])), len(str(big_payload["plans"])))
+        for preview in compact["plans"]:
+            self.assertNotIn("services", preview)
+            self.assertIn("service_count", preview)
 
 
 if __name__ == "__main__":
