@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from itertools import combinations
 from typing import Any
-from urllib.error import HTTPError
-from urllib.parse import urljoin
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 DEFAULT_TIMEOUT_SECONDS = 30
+
+# Base URL for the k8s-manager API. Defaults to the compose service DNS name
+# for the local mock; override with K8S_MANAGER_URL to point at a real
+# cluster (the real service listens on :8000, not :8001).
+DEFAULT_SERVICE_ENDPOINT = os.getenv("K8S_MANAGER_URL", "http://test-api:8001")
 
 VEHICLE_TYPES = []
 APPROACH_ZONES = []
@@ -290,10 +296,8 @@ def generate_deployment_plans(
     The captain can emit either the canonical dict form or the intermediate list-based form,
     so the planner normalizes both shapes before exact-cover generation.
     """
-    print("TEST DEBUG", fixed_services, service_variants)
     normalized_fixed = _normalize_fixed_services(fixed_services)
     normalized_variants = _normalize_service_variants(service_variants)
-    print("TEST DEBUG", normalized_variants)
     if not normalized_variants:
         return {"plans": []}
 
@@ -304,9 +308,6 @@ def generate_deployment_plans(
         scenario["types"], scenario["zones"], scenario["need"]
     )
     plans = find_all_plans(valid_instances, scenario["need"])
-    print(
-        f"TEST DEBUG: {len(plans)} plans generated for {len(valid_instances)} valid instances"
-    )
     generated: list[dict[str, Any]] = []
     for index, plan in enumerate(plans, start=1):
         plan_services: list[dict[str, Any]] = []
@@ -322,7 +323,7 @@ def generate_deployment_plans(
         for inst in plan:
             plan_services.append(
                 {
-                    "service_name": "object_in_zone_detection",
+                    "service_name": "object-in-zone-detection",
                     "action": "new_instance",
                     "env_vars": {
                         "OBJECT_TYPE_FILTER": ",".join(sorted(inst["types"])),
@@ -340,39 +341,299 @@ def generate_deployment_plans(
 
     return {"plans": generated}
 
-
-DEFAULT_TIMEOUT_SECONDS = 30
-
-
-def _http_get_json(service_endpoint: str, relative_path: str) -> dict[str, Any]:
-    base = service_endpoint.rstrip("/") + "/"
-    url = urljoin(base, relative_path.lstrip("/"))
-    request = Request(url, headers={"Accept": "application/json"}, method="GET")
-    with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-        return json.loads(response.read().decode("utf-8"))
+# ---------------------------------------------------------------------------
+# k8s-manager HTTP client
+#
+# Written against the live-verified contract in k8s-manager-api-reference/.
+# Base URL comes from K8S_MANAGER_URL so switching from the mock to a real
+# cluster is a config change, not a code change.
+# ---------------------------------------------------------------------------
 
 
-def get_deployable_services_basic(service_endpoint: str) -> dict[str, Any]:
-    """Fetch deployable services and return only name/description/dependencies.
+class ApiError(RuntimeError):
+    """A non-2xx response from k8s-manager.
 
-    Args:
-        service_endpoint: Base API endpoint, for example "http://host.docker.internal:8001".
-
-    Returns:
-        JSON-compatible dictionary:
-        {
-          "services": [
-            {"name": str, "description": str, "dependencies": list[str]},
-            ...
-          ],
-          "total": int
-        }
+    `detail` carries the API's own message. Real k8s-manager is FastAPI and
+    reports errors as {"detail": "..."}, not {"error": ...}.
     """
 
-    raw_payload = _http_get_json(service_endpoint, "info/services")
+    def __init__(self, status: int, detail: str, url: str) -> None:
+        super().__init__(f"{url} -> HTTP {status}: {detail}")
+        self.status = status
+        self.detail = detail
+        self.url = url
 
-    services = raw_payload.get("services", [])
-    compact_services: list[dict[str, Any]] = []
+
+def _resolve_endpoint(service_endpoint: str | None) -> str:
+    return (service_endpoint or DEFAULT_SERVICE_ENDPOINT).rstrip("/")
+
+
+def _build_url(
+    service_endpoint: str | None,
+    relative_path: str,
+    params: dict[str, Any] | None = None,
+) -> str:
+    base = _resolve_endpoint(service_endpoint) + "/"
+    url = urljoin(base, relative_path.lstrip("/"))
+    if params:
+        query = {}
+        for key, value in params.items():
+            if value is None:
+                continue
+            if value is True:
+                query[key] = "true"
+            elif value is False:
+                query[key] = "false"
+            else:
+                query[key] = str(value)
+        if query:
+            url = url + "?" + urlencode(query)
+    return url
+
+
+def _request(
+    method: str,
+    service_endpoint: str | None,
+    relative_path: str,
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+) -> Any:
+    """Perform one request and return parsed JSON, or None for an empty body.
+
+    DELETE /instances/{name} answers 204 with no body, so an empty response is
+    a success case and must not be handed to json.loads.
+    """
+    url = _build_url(service_endpoint, relative_path, params)
+    data = None
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            raw = response.read().decode(charset)
+    except HTTPError as exc:
+        raw_error = exc.read().decode("utf-8", errors="replace")
+        detail = raw_error
+        try:
+            parsed = json.loads(raw_error)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            detail = str(parsed.get("detail") or parsed.get("error") or raw_error)
+        raise ApiError(exc.code, detail[:500], url) from exc
+    except URLError as exc:
+        raise ApiError(0, f"connection failed: {exc.reason}", url) from exc
+
+    if not raw.strip():
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError as exc:
+        raise ApiError(0, f"invalid JSON: {raw[:200]}", url) from exc
+
+
+# --- env value comparison --------------------------------------------------
+#
+# Real /status.env_vars is a flat dict[str, str] where every value is a string,
+# but the encodings vary by variable:
+#   OBJECT_TYPE_FILTER  '["TRUCK","CAR"]'   compact JSON
+#   APPROACH_ZONES      'L1_N_WS,L2_N_S'    comma separated
+#   STRIDE              '1'                 number as string
+#   MAKE_MOCK           'False'             bool as string
+# Deployed zone IDs are also uppercased, while the catalogue publishes them
+# mixed-case ('C5_w'). Both sides go through the same canonical form so that a
+# Python list, a JSON array string and a comma-separated string compare equal.
+
+
+def _canonical_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    text = str(value).strip()
+    lowered = text.casefold()
+    if lowered in {"true", "false"}:
+        return lowered
+    try:
+        number = float(text)
+    except ValueError:
+        return lowered
+    return repr(number)
+
+
+def _split_tokens(value: Any) -> list[str]:
+    """Split a value into comparable tokens.
+
+    Handles native lists, JSON array strings and comma-separated strings. A
+    plain scalar becomes a single token, so "CAR" and '["CAR"]' agree.
+    """
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in text.split(",") if item.strip()]
+    return [str(value).strip()]
+
+
+def _canonical_env_value(value: Any) -> frozenset[str]:
+    return frozenset(_canonical_scalar(token) for token in _split_tokens(value))
+
+
+def env_values_match(expected_value: Any, actual_value: Any) -> bool:
+    """True when two env var values mean the same thing."""
+    return _canonical_env_value(expected_value) == _canonical_env_value(actual_value)
+
+
+def _env_subset_matches(
+    expected_env: dict[str, Any], actual_env: dict[str, Any]
+) -> bool:
+    """Subset comparison: only keys present in `expected_env` are checked.
+
+    This is deliberate, not an oversight. POST /instances merges the submitted
+    env_vars with chart defaults (and frozen vars) from the Helm registry, so
+    GET /status reports the merged superset and comparing full dicts would
+    never match. Note that a catalogue default of null is omitted from the
+    merged result entirely, so an expected key whose value is null can never
+    be found.
+    """
+    for key, expected_value in expected_env.items():
+        if key not in actual_env:
+            return False
+        if not env_values_match(expected_value, actual_env[key]):
+            return False
+    return True
+
+
+# --- status ----------------------------------------------------------------
+
+
+def _instances_from_payload(payload: Any) -> list[dict[str, Any]]:
+    """Normalize both /status shapes into a list.
+
+    GET /status and GET /status?name= return {"instances": [...], "total": N}.
+    GET /status/{instance_id} returns a bare instance object. Calling
+    .get("instances", []) on the bare shape silently yields [], which reads as
+    "nothing is deployed" rather than as an error.
+    """
+    if payload is None:
+        return []
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        if "instances" in payload:
+            instances = payload.get("instances") or []
+            return [item for item in instances if isinstance(item, dict)]
+        if "instance_name" in payload:
+            return [payload]
+    return []
+
+
+def instance_is_ready(instance: dict[str, Any]) -> bool:
+    """Readiness per the real contract.
+
+    deployment_status is "Available" or "Degraded" on real k8s-manager, and
+    every pod must be ready and Running. Instances scaled to zero report
+    pods == [], which is not ready.
+    """
+    if str(instance.get("deployment_status", "")).casefold() != "available":
+        return False
+    pods = instance.get("pods") or []
+    if not pods:
+        return False
+    for pod in pods:
+        if not bool(pod.get("ready")):
+            return False
+        if str(pod.get("phase", "")).casefold() != "running":
+            return False
+    return True
+
+
+def _compact_instance(
+    instance: dict[str, Any], env_keys: list[str] | None = None
+) -> dict[str, Any]:
+    """Small instance summary; the full object is 11 keys including metrics."""
+    actual_env = instance.get("env_vars") or {}
+    if env_keys is None:
+        shown_env = actual_env
+    else:
+        shown_env = {key: actual_env[key] for key in env_keys if key in actual_env}
+    return {
+        "instance_name": instance.get("instance_name"),
+        "service_name": instance.get("service_name"),
+        "deployment_status": instance.get("deployment_status"),
+        "node": instance.get("node"),
+        "ready": instance_is_ready(instance),
+        "env_vars": shown_env,
+    }
+
+
+def get_health(service_endpoint: str | None = None) -> dict[str, Any]:
+    """GET /health - pre-flight check that k8s-manager is reachable."""
+    return _request("GET", service_endpoint, "health") or {}
+
+
+def get_running_instances(
+    service_endpoint: str | None = None,
+    service_name: str | None = None,
+    short_info: bool = False,
+) -> dict[str, Any]:
+    """GET /status, optionally filtered to one service.
+
+    The only filter the real API defines is `name`. `short_info` omits
+    env_vars, kafka_topics, ram_memory_usage_mb and frequency_metrics.
+    """
+    payload = _request(
+        "GET",
+        service_endpoint,
+        "status",
+        params={"name": service_name, "short_info": short_info or None},
+    )
+    instances = _instances_from_payload(payload)
+    compact = []
+    for item in instances:
+        compact.append(
+            {
+                "instance_name": item.get("instance_name"),
+                "service_name": item.get("service_name"),
+                "deployment_status": item.get("deployment_status"),
+                "ready": instance_is_ready(item),
+                "env_vars": item.get("env_vars") or {},
+            }
+        )
+    return {"instances": compact, "total": len(compact)}
+
+
+# --- catalogue -------------------------------------------------------------
+
+
+def get_deployable_services_basic(
+    service_endpoint: str | None = None,
+) -> dict[str, Any]:
+    """Fetch deployable services and return only name/description/dependencies.
+
+    Uses short_info=true: the full catalogue carries every env var for every
+    service and is far larger than the selection step needs.
+
+    Returns:
+        {"services": [{"name", "description", "dependencies"}], "total": int}
+    """
+    raw_payload = _request(
+        "GET", service_endpoint, "info/services", params={"short_info": True}
+    )
+    services = (raw_payload or {}).get("services", []) or []
+    compact_services = []
     for item in services:
         compact_services.append(
             {
@@ -381,59 +642,57 @@ def get_deployable_services_basic(service_endpoint: str) -> dict[str, Any]:
                 "dependencies": item.get("dependencies", []) or [],
             }
         )
-
     return {"services": compact_services, "total": len(compact_services)}
 
 
-def get_service_env_schema(service_endpoint: str, service_name: str) -> dict[str, Any]:
-    """Fetch required/optional env var metadata for a specific service.
+def get_service_env_schema(
+    service_endpoint: str | None, service_name: str
+) -> dict[str, Any]:
+    """Fetch env var metadata for one service from GET /info/{service_name}.
 
-    Args:
-        service_endpoint: Base API endpoint, for example "http://host.docker.internal:8001".
-        service_name: Service name to look up.
+    The catalogue publishes THREE arrays. frozen_env_vars are set by the chart
+    and must not be submitted, but they do appear in GET /status.env_vars, so
+    they are returned here to explain values that would otherwise look like
+    unexplained extras.
+
+    Each entry has: name, type (a Python type name as a string), description,
+    value (the default), required, possible_values (list | null). `required` is
+    false on both optional and frozen entries, so array membership is the only
+    way to tell them apart.
 
     Returns:
-        JSON-compatible dictionary:
-        {
-          "name": str,
-          "required_env_vars": list[dict],
-          "optional_env_vars": list[dict]
-        }
+        {"name", "required_env_vars", "optional_env_vars", "frozen_env_vars"}
     """
-
-    raw_payload = _http_get_json(service_endpoint, "info/services")
-    for item in raw_payload.get("services", []):
-        if item.get("name") == service_name:
-            return {
-                "name": service_name,
-                "required_env_vars": item.get("required_env_vars", []) or [],
-                "optional_env_vars": item.get("optional_env_vars", []) or [],
-            }
-    raise ValueError(f"Service not found in /info/services: {service_name}")
+    if not service_name:
+        raise ValueError("service_name is required")
+    try:
+        item = _request("GET", service_endpoint, f"info/{service_name}")
+    except ApiError as exc:
+        if exc.status == 404:
+            raise ValueError(f"Service not found: {service_name}") from exc
+        raise
+    if not isinstance(item, dict):
+        raise ValueError(f"Unexpected /info/{service_name} response shape")
+    return {
+        "name": item.get("name", service_name),
+        "required_env_vars": item.get("required_env_vars", []) or [],
+        "optional_env_vars": item.get("optional_env_vars", []) or [],
+        "frozen_env_vars": item.get("frozen_env_vars", []) or [],
+    }
 
 
 def is_service_deployed(
-    service_endpoint: str, expected: dict[str, Any]
+    service_endpoint: str | None, expected: dict[str, Any]
 ) -> dict[str, Any]:
     """Check whether a deployed instance matches the expected env var values.
 
     Args:
-        service_endpoint: Base API endpoint, for example "http://host.docker.internal:8001".
-        expected: JSON-like dict with:
-            {
-              "service_name": str,
-              "env_vars": {str: Any}
-            }
+        service_endpoint: Base API endpoint, or None for K8S_MANAGER_URL.
+        expected: {"service_name": str, "env_vars": {str: Any}}
 
     Returns:
-        JSON-compatible dictionary:
-        {
-          "service_name": str,
-          "is_deployed": bool,
-          "matched_instance": dict | None
-        }
+        {"service_name": str, "is_deployed": bool, "matched_instance": dict | None}
     """
-
     service_name = expected.get("service_name")
     if not service_name:
         raise ValueError("expected.service_name is required")
@@ -442,41 +701,22 @@ def is_service_deployed(
     if not isinstance(expected_env, dict):
         raise ValueError("expected.env_vars must be an object/dict")
 
-    status_candidates = [
-        f"status/name={service_name}",
-        f"status?service_name={service_name}",
-        f"status?name={service_name}",
-    ]
+    payload = _request(
+        "GET", service_endpoint, "status", params={"name": service_name}
+    )
+    instances = _instances_from_payload(payload)
 
-    payload: dict[str, Any] | None = None
-    last_error: Exception | None = None
-    for path in status_candidates:
-        try:
-            payload = _http_get_json(service_endpoint, path)
-            break
-        except HTTPError as exc:
-            last_error = exc
-            if exc.code != 404:
-                raise
-        except Exception as exc:  # pragma: no cover - transport/runtime safety
-            last_error = exc
-
-    if payload is None:
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("Unable to fetch service status")
-
-    expected_str = {k: str(v) for k, v in expected_env.items()}
-    for instance in payload.get("instances", []):
+    for instance in instances:
         if instance.get("service_name") != service_name:
             continue
         actual_env = instance.get("env_vars", {}) or {}
-        actual_str = {k: str(v) for k, v in actual_env.items()}
-        if all(actual_str.get(key) == value for key, value in expected_str.items()):
+        if _env_subset_matches(expected_env, actual_env):
             return {
                 "service_name": service_name,
                 "is_deployed": True,
-                "matched_instance": instance,
+                "matched_instance": _compact_instance(
+                    instance, list(expected_env.keys())
+                ),
             }
 
     return {
@@ -484,3 +724,86 @@ def is_service_deployed(
         "is_deployed": False,
         "matched_instance": None,
     }
+
+
+# --- instances (write) -----------------------------------------------------
+
+
+def _stringify_env(env_vars: dict[str, Any]) -> dict[str, str]:
+    """Render env values the way the API stores them: all strings, with lists
+    as compact JSON, matching what GET /status reports back."""
+    rendered: dict[str, str] = {}
+    for key, value in env_vars.items():
+        if isinstance(value, (list, tuple, set, frozenset)):
+            rendered[key] = json.dumps(
+                [str(item) for item in value], separators=(",", ":")
+            )
+        elif isinstance(value, bool):
+            rendered[key] = "True" if value else "False"
+        else:
+            rendered[key] = str(value)
+    return rendered
+
+
+def create_instance(
+    service_endpoint: str | None,
+    service_name: str,
+    env_vars: dict[str, Any] | None = None,
+    node_name: str | None = None,
+    instance_prefix: str | None = None,
+    metrics_trackable: bool = True,
+) -> dict[str, Any]:
+    """POST /instances.
+
+    Submitted env_vars are merged with chart defaults, explicit values winning.
+    metrics_trackable injects the Kafka metrics-proxy sidecar and must stay
+    true for anything downstream to observe the instance.
+
+    Returns the API's 5-key response: instance_name, service_name, namespace,
+    image, metrics_trackable.
+    """
+    if not service_name:
+        raise ValueError("service_name is required")
+    body: dict[str, Any] = {
+        "service_name": service_name,
+        "env_vars": _stringify_env(env_vars or {}),
+        "metrics_trackable": metrics_trackable,
+    }
+    if node_name:
+        body["node_name"] = node_name
+    if instance_prefix:
+        body["instance_prefix"] = instance_prefix
+    return _request("POST", service_endpoint, "instances", body=body) or {}
+
+
+def update_instance(
+    service_endpoint: str | None,
+    instance_name: str,
+    env_vars: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """PUT /instances/{instance_name}.
+
+    With env_vars: replaces the configuration and rolling-restarts. Without:
+    a pure rolling restart. Image and service identity never change. Preferred
+    over DELETE + POST for reconfiguration - there is no window in which the
+    service is absent, and the instance name survives.
+    """
+    if not instance_name:
+        raise ValueError("instance_name is required")
+    body: dict[str, Any] = {}
+    if env_vars is not None:
+        body["env_vars"] = _stringify_env(env_vars)
+    result = _request(
+        "PUT", service_endpoint, f"instances/{instance_name}", body=body
+    )
+    return result or {}
+
+
+def delete_instance(
+    service_endpoint: str | None, instance_name: str
+) -> dict[str, Any]:
+    """DELETE /instances/{instance_name}. Answers 204 with no body."""
+    if not instance_name:
+        raise ValueError("instance_name is required")
+    _request("DELETE", service_endpoint, f"instances/{instance_name}")
+    return {"instance_name": instance_name, "deleted": True}

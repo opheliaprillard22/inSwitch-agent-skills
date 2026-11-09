@@ -36,7 +36,11 @@ sys.path.append("/workspace/script")
 
 from util import get_deployable_services_basic
 from util import get_service_env_schema
+from util import get_running_instances
 from util import is_service_deployed
+from util import create_instance
+from util import update_instance
+from util import delete_instance
 ```
 
 <!-- ### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
@@ -107,8 +111,8 @@ Rule:
 
 Purpose:
 
-- Fetch env schema for one service from `GET /info/services`.
-- Return `required_env_vars` and `optional_env_vars` for that service.
+- Fetch env schema for one service from `GET /info/{service_name}`.
+- Return all three env var arrays for that service.
 
 Input:
 
@@ -121,9 +125,23 @@ Output JSON shape:
 {
   "name": "service-a",
   "required_env_vars": [],
-  "optional_env_vars": []
+  "optional_env_vars": [],
+  "frozen_env_vars": []
 }
 ```
+
+Each env var entry has `name`, `type` (a Python type name as a string),
+`description`, `value` (the default), `required`, and `possible_values`
+(a list, or `null` for free-form values).
+
+Rules:
+
+- `frozen_env_vars` are set by the chart. Never submit them in `POST /instances`.
+  They do appear in `GET /status` env vars, so treat them as explained extras
+  rather than unexpected values.
+- `required` is `false` on both optional and frozen entries. Array membership is
+  the only way to tell the two apart.
+- When `possible_values` is a list, only use values from that list.
 
 ### `is_service_deployed(service_endpoint: str, expected: dict) -> dict`
 
@@ -144,8 +162,19 @@ Input JSON shape:
 
 Status lookup:
 
-- Uses `/status/name=<service_name>` first.
-- Falls back to query-based variants if needed.
+- Calls `GET /status?name=<service_name>`. That is the only filter the API
+  defines: do not use `/status/name=<service_name>` or `?service_name=`.
+
+Comparison semantics:
+
+- Only the keys present in `expected.env_vars` are compared. This is deliberate:
+  `POST /instances` merges what you submit with the chart defaults and frozen
+  vars, so `GET /status` reports a superset of what was requested.
+- Values are compared after canonicalization, so a Python list, a JSON array
+  string (`'["CAR","TRUCK"]'`) and a comma-separated string (`CAR,TRUCK`) all
+  match, and zone IDs match regardless of case (`C5_w` vs `C5_W`).
+- An env var whose catalogue default is `null` is omitted from the deployed env
+  entirely, so never put such a key in `expected.env_vars`.
 
 Output JSON shape:
 
@@ -153,9 +182,81 @@ Output JSON shape:
 {
   "service_name": "service-a",
   "is_deployed": true,
-  "matched_instance": {}
+  "matched_instance": {
+    "instance_name": "service-a-1a2b3c4d",
+    "service_name": "service-a",
+    "deployment_status": "Available",
+    "node": "node1-k8s",
+    "ready": true,
+    "env_vars": {}
+  }
 }
 ```
+
+### `get_running_instances(service_endpoint: str, service_name: str | None = None, short_info: bool = False) -> dict`
+
+Purpose:
+
+- List the instances currently deployed, from `GET /status`, optionally filtered
+  to one service.
+- Use this for "Show Running Services" and whenever the workflow needs the
+  current cluster state.
+
+Output JSON shape:
+
+```json
+{
+  "instances": [
+    {
+      "instance_name": "service-a-1a2b3c4d",
+      "service_name": "service-a",
+      "deployment_status": "Available",
+      "ready": true,
+      "env_vars": {}
+    }
+  ],
+  "total": 1
+}
+```
+
+### `create_instance(service_endpoint, service_name, env_vars=None, node_name=None, instance_prefix=None, metrics_trackable=True) -> dict`
+
+Purpose:
+
+- Deploy one instance via `POST /instances`.
+- Returns `instance_name`, `service_name`, `namespace`, `image`,
+  `metrics_trackable`.
+
+Rules:
+
+- Leave `metrics_trackable` as `true`. It injects the metrics sidecar, without
+  which nothing downstream can observe the instance.
+- Never submit `frozen_env_vars`.
+
+### `update_instance(service_endpoint, instance_name, env_vars=None) -> dict`
+
+Purpose:
+
+- Reconfigure an instance in place via `PUT /instances/{instance_name}`, with a
+  rolling restart. Omit `env_vars` for a pure restart.
+
+Rule:
+
+- Prefer this over `delete_instance` + `create_instance` when changing the
+  configuration of a running instance: there is no window in which the service
+  is absent, and the instance name survives.
+
+### `delete_instance(service_endpoint, instance_name) -> dict`
+
+Purpose:
+
+- Remove an instance via `DELETE /instances/{instance_name}`.
+
+### `get_health(service_endpoint) -> dict`
+
+Purpose:
+
+- Pre-flight check via `GET /health`. Returns `{"status": "ok"}`.
 
 ## Workflows by Capability
 
@@ -176,65 +277,49 @@ Workflow:
 3. Resolve the dependency graph and build the ordered service set. For each service:
    - call `get_service_env_schema(service_endpoint, service_name)`
    - fill in the required env values from the user intent and the service metadata
-   - if zone-based values are involved and the intent is not already canonical, delegate to the `gate-spatial-reasoning` sub-agent before continuing
-5. Here is the list of current services running: 
-        {
-          "instances": [
-            {
-              "instance_name": "crosswalk-safety-alert-person-c5w",
-              "service_name": "crosswalk-safety-alert",
-              "deployment_status": "deployed",
-              "pods": [{"ready": True, "phase": "Running"}],
-              "env_vars": {
-                "OBJECT_TYPE_FILTER": "PERSON",
-                "ZONES_OF_INTEREST": "C5_W"
-              }
-            },
-            {
-              "instance_name": "object-in-zone-detection-vehicles-l1l2",
-              "service_name": "object-in-zone-detection",
-              "deployment_status": "deployed",
-              "pods": [{"ready": True, "phase": "Running"}],
-              "env_vars": {
-                "OBJECT_TYPE_FILTER": "TWO-WHEELER,UNKNOWN",
-                "ZONES_OF_INTEREST": "L1_N_WS,L2_N_S"
-              }
-            },
-            {
-              "instance_name": "object-in-zone-detection-vehicles-tc",
-              "service_name": "object-in-zone-detection",
-              "deployment_status": "deployed",
-              "pods": [{"ready": True, "phase": "Running"}],
-              "env_vars": {
-                "OBJECT_TYPE_FILTER": "TRUCK, CAR",
-                "ZONES_OF_INTEREST": "L1_N_WS, L2_N_S"
-              }
-            }
-          ],
-          "total": 3
-        }
-<!-- Get the instances already running by calling `is_service_deployed(service_endpoint, expected)`. -->
-6. Use the actual object-type and zone values extracted from the user intent as the source of truth and imagine all instances can be deployed separately or combined in all types of combinations. Keep the full set internally, compare them against reuse of the instances already running retrieved in step 5, CPU, memory, overlap, and complexity, and choose the different alternative deployment plans that meet the different criteria, but also note which is the strongest on in all aspects. 
+   - if zone-based values are involved and the intent is not already canonical
+     (canonical zone IDs match `^[LCISBE]+\d+_`), delegate to the
+     `gate-spatial-reasoning` sub-agent before continuing:
+     - Folder path to delegate to: exactly `gate-spatial-reasoning`. It sits
+       directly under `/workspace`. Never prefix it with this skill's own name
+       and never invent a nested path.
+     - Pass the original user intent verbatim.
+     - The sub-agent returns a JSON object mapping spatial roles to canonical
+       zone IDs, plus ranked alternatives and a rationale.
+     - If it returns ambiguous candidates, surface them to the user as a single
+       multiple-choice question rather than asking for raw zone IDs.
+     - Use the resolved zone IDs to fill the env plan.
+4. Get the current cluster state. Call `get_running_instances(service_endpoint)`
+   from `/workspace/script/util.py`. Never assume or invent what is running, and
+   never reuse a list of instances from an earlier turn: fetch it.
+   - For each candidate service plus env set, confirm with
+     `is_service_deployed(service_endpoint, expected)`. Put only the essential
+     variables in `expected` - skip anything with a default value, anything you
+     are unsure about, and anything `KAFKA`-related.
+5. Use the actual object-type and zone values extracted from the user intent as the source of truth and imagine all instances can be deployed separately or combined in all types of combinations. Keep the full set internally, compare them against reuse of the instances already running retrieved in step 4, CPU, memory, overlap, and complexity, and choose the different alternative deployment plans that meet the different criteria, but also note which is the strongest on in all aspects.
    - If no actual object-type or zone values were resolved, do not invent defaults; stop and report that the required intent-backed values are missing.
    - If there is only one valid candidate, say so clearly.
 6. Present the alternatives to the user and ask to choose one to proceed.
 7. Show the final to-be-deployed list and ask: `Proceed with deployment? (yes/no)`.
-8. If confirmed, deploy each service in order using `POST /instances`.
+8. If confirmed, deploy each service in order with `create_instance(...)`.
 9. Stop on the first failure and return any partial results.
 
 Determinism rules:
 
 1. Sort dependency names alphabetically before traversal.
-2. Canonicalize env vars before comparison:
-   - sort keys ascending
-   - convert values to strings
-   - build a stable JSON object
+2. Do not hand-roll env var comparison. `is_service_deployed` canonicalizes
+   both sides: list encodings (Python list, JSON array string, comma-separated)
+   and zone ID casing are all normalized before comparing.
 
 Readiness criteria:
 
-- `deployment_status == "deployed"`
+- `deployment_status == "Available"` (the API reports `Available` or `Degraded`,
+  never `deployed`)
+- `pods` is non-empty; an instance scaled to zero reports `pods: []`
 - all pods have `ready == true`
 - all pod phases are `Running`
+
+`instance_is_ready(instance)` in `/workspace/script/util.py` applies all of these.
 
 Failure handling:
 
@@ -259,12 +344,14 @@ Final report format:
 
 Workflow:
 
-1. Call `GET /status`, or `GET /status?service_name={service_name}` if user intent is specific to a service.
+1. Call `get_running_instances(service_endpoint)` from `/workspace/script/util.py`,
+   passing `service_name` when the intent is specific to one service. The API's
+   only filter is `?name=`; there is no `?service_name=` param.
 2. Return concise per-instance list:
    - `instance_name`
    - `service_name`
    - `deployment_status`
-   - pod readiness summary
+   - `ready` (pod readiness summary)
    - all env vars
 3. If `total == 0`, report no running/deployed services.
 
@@ -294,9 +381,12 @@ Output:
 
 Default base URL:
 
-- `http://host.docker.internal:8001`
+- `http://test-api:8001` - the compose service DNS name for the local mock.
 
-Treat base URL as runtime configuration. If endpoint changes, update before any call.
+The functions in `/workspace/script/util.py` already default to this, read from
+the `K8S_MANAGER_URL` environment variable, so `service_endpoint` can be passed
+as `None`. The real k8s-manager listens on port `8000`, not `8001`; switching to
+it is a change to `K8S_MANAGER_URL` only.
 
 ### Request Defaults
 
@@ -342,6 +432,10 @@ Expected response fields:
 - `services[].dependencies`
 - `services[].required_env_vars`
 - `services[].optional_env_vars`
+- `services[].frozen_env_vars` (chart-set; never submit these)
+
+With `?short_info=true` only `name`, `description`, `versions` and
+`dependencies` are returned, and `versions` comes back empty.
 
 NOTE: when you call this API in python, always add post-processing in your python code to extract only the fields or items that are relevant to the current step in the workloads. Do not return the full payload.
 
@@ -354,21 +448,34 @@ Purpose:
 Use in workflows:
 
 - Show running services
-- Precheck env identity support (`env_hash` or `env_vars`)
+- Precheck whether an instance with matching `env_vars` already exists
+
+Query params (these are the only ones the API defines):
+
+- `name` - filter to instances of one service name
+- `short_info` - omit `env_vars`, `kafka_topics`, `ram_memory_usage_mb`,
+  `frequency_metrics`
+- `window_seconds` - frequency-metrics window
 
 Relevant response fields:
 
 - `instances[].instance_name`
 - `instances[].service_name`
-- `instances[].deployment_status`
+- `instances[].deployment_status` (`Available` | `Degraded`)
+- `instances[].node` (may be `null`)
 - `instances[].pods[].ready`
 - `instances[].pods[].phase`
-- `instances[].env
+- `instances[].env_vars` - a flat object of strings, **merged** with the chart
+  defaults and frozen vars, so it is a superset of what was submitted. List
+  values appear as compact JSON; `APPROACH_ZONES` is comma-separated; deployed
+  zone IDs are uppercased (`C5_W`) while the catalogue publishes them mixed-case
+  (`C5_w`). There is no `env_hash` field.
 - `total`
 
-#### `GET /status?name={service_name}`
+#### `GET /status/{instance_id}`
 
-Get the status instances filtered by service name. Useful for pre-checking if an instance with matching env already exists.
+Returns a **bare instance object** with no `instances`/`total` wrapper. A missing
+instance gives `404` with body `{"detail": "Instance '<name>' not found."}`.
 
 #### `POST /instances`
 
@@ -376,32 +483,44 @@ Purpose:
 
 - Create a new service instance.
 
+Body fields: `service_name` (required), `env_vars`, `node_name`,
+`instance_prefix`, `metrics_trackable` (default `true`).
+
 Example:
 
 ```json
 {
-  "service_name": "lidar-object-counting",
+  "service_name": "object-counting",
   "node_name": "node1-k8s",
   "env_vars": {
-    "OBJECT_TYPE": "CAR",
-    "ZONE_FILTER": "L10_all_e"
+    "OBJECT_TYPE_FILTER": "[\"CAR\"]",
+    "ZONES_OF_INTEREST": "[\"L10_all_e\"]"
   }
 }
 ```
 
-##### `DELETE /instances/{instance_name}`
+Returns `instance_name`, `service_name`, `namespace`, `image`,
+`metrics_trackable`. Prefer `create_instance(...)` over writing this call by hand.
 
-Delete a service instance by name
+#### `PUT /instances/{instance_name}`
+
+Update env vars and rolling-restart, or restart only if `env_vars` is omitted.
+Use this instead of `DELETE` + `POST` to reconfigure a running instance.
+
+#### `DELETE /instances/{instance_name}`
+
+Delete a service instance by name. Answers `204` with no body.
 
 ## What we already know:
 
 - Skip the variable checks for lidar-osef-data-streamer, osef-tracked-objects, osef-zones, because they are always deployed with default variables. Tell the users that they are deployed, and do not need to be re-deployed.
 - No need to show or check env vars related to `KAFKA` in the env resolution or user confirmation steps, but use default values for these variables when actual deploy the services.
 - All object types supported: "TRUCK","CAR","TWO-WHEELER","UNKNOWN", "PERSON". For pedestrian, use "PERSON".
-- if service `object-in-zone-detection` is recently deployed by you, always consider re-deploy it with new variable values. If this is the case, tell the user you can re-deploy, and if confirmed, in addition to deploying the new one, remove the existing instance
+- if service `object-in-zone-detection` is recently deployed by you, always consider re-deploy it with new variable values. If this is the case, tell the user you can re-deploy, and if confirmed, prefer `update_instance(service_endpoint, instance_name, env_vars=...)` to change it in place; only fall back to deploying a new instance and removing the old one if the configuration cannot be updated
 - no need to wait and check the deployment results, we have dedicated workflow for that. Just trigger the deployment and return.
-- for intents involving pedistrian walking cross a zone, use object-in-zone-detection with `OBJECT_TYPE=PERSON`
+- for intents involving pedistrian walking cross a zone, use object-in-zone-detection with `OBJECT_TYPE_FILTER=["PERSON"]`
 - use 6 m/s as default high-speed.
-- crosswalk-safety-alert needs two instances of object-in-zone-detection with different env values: one for pedestrian with `OBJECT_TYPE=PERSON` and another for vehicles with `OBJECT_TYPE` set to "TRUCK","CAR","TWO-WHEELER","UNKNOWN", each with relevant zones.
+- crosswalk-safety-alert needs two instances of object-in-zone-detection with different env values: one for pedestrian with `OBJECT_TYPE_FILTER=["PERSON"]` and another for vehicles with `OBJECT_TYPE_FILTER` set to "TRUCK","CAR","TWO-WHEELER","UNKNOWN", each with relevant zones.
 - when the intent is about illegal pedestrian, no need for corss-walk-safety-alert. Also try to reuse object-in-zone-detection witht he same zone, and add PERSON into the object types.
-- For zone-related env vars on the Sofia intersection, never ask the user for raw zone IDs. Always delegate to gate-spatial-reasoning first.
+- For zone-related env vars on the Sofia intersection, never ask the user for raw zone IDs. Always delegate to the `gate-spatial-reasoning` folder first (that exact folder path, directly under `/workspace`).
+- `read_file`, `write_file` and `list_dir` resolve relative paths from the calling agent's own folder. Pass a bare filename, never a path that repeats the folder name, or it will be appended twice and fail.
