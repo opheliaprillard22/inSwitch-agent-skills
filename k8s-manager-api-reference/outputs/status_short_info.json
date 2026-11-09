@@ -1,0 +1,257 @@
+{
+    "instances": [
+        {
+            "instance_name": "crosswalk-safety-alert-f8ec0894",
+            "service_name": "crosswalk-safety-alert",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "crosswalk-safety-alert-f8ec0894-5b885695c-qzzgx",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 0
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "lidar-osef-data-streamer-fc271ce2",
+            "service_name": "lidar-osef-data-streamer",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "lidar-osef-data-streamer-fc271ce2-6dc9754c44-tr7nt",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "object-in-zone-detection-0594be1b",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-0594be1b-5b86f9f7cc-qmktf",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "object-in-zone-detection-12e036d2",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-12e036d2-d9c88957b-jgjtv",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "object-in-zone-detection-62ecf550",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-62ecf550-588f755f8-rsq2j",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "object-in-zone-detection-c526d06d",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-c526d06d-67d64cb798-vfjj7",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "object-speeds-ebc58ef6",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-speeds-ebc58ef6-79ff78c8b7-wzhb8",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "osef-tracked-objects-9c4c3d22",
+            "service_name": "osef-tracked-objects",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "osef-tracked-objects-9c4c3d22-6cb54fbd8b-v54t9",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "osef-zones-0a356ee8",
+            "service_name": "osef-zones",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "osef-zones-0a356ee8-558c44d9c4-s9gv7",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 4
+                }
+            ],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-object-counting-385b212c",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-object-counting-a44070d7",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-object-in-zone-detection-b63df993",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-object-in-zone-detection-bd8afabb",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-object-speeds-97b64300",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4a-overspeed-alert-73120900",
+            "service_name": "overspeed-alert",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4b-object-counting-6648b82c",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4b-object-counting-db014979",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4b-object-in-zone-detection-e807e0f9",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4b-object-speeds-7e7cdffd",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        },
+        {
+            "instance_name": "uc4b-overspeed-alert-57e8341f",
+            "service_name": "overspeed-alert",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "metrics_trackable": true
+        }
+    ],
+    "total": 20
+}

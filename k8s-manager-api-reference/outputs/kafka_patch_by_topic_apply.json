@@ -1,0 +1,28 @@
+{
+  "_history": "This call originally exposed a real bug: KafkaMetricsClient.alter_topic_config() used Kafka's legacy, non-incremental AlterConfigs API, which replaces a topic's *entire* dynamic config with exactly what's provided in the request. Patching only segment_jitter_ms silently reset retention_bytes (209715200 -> -1, unlimited) and retention_ms (180000 -> 604800000, 7 days) on this high-throughput topic. Found live while building this doc, fixed by switching to IncrementalAlterConfigs (gate-institute/k8s-manager PR #6, merged to master), rebuilt, redeployed, and re-verified below against the real endpoint on the real topic.",
+  "request": {
+    "method": "PATCH",
+    "url": "/kafka/topics/config",
+    "body": {"topic_name": "city_lab.paradise_mall_sofia.lidar.object_speeds", "segment_jitter_ms": 100}
+  },
+  "response_after_fix": {
+    "topics": [
+      {
+        "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+        "bootstrap_server": "10.2.0.163:29092",
+        "message_count": 739051,
+        "config": {
+          "partition_count": 1,
+          "replication_factor": 1,
+          "retention_bytes": 209715200,
+          "retention_ms": 180000
+        },
+        "source_instances": ["crosswalk-safety-alert-f8ec0894", "uc4a-overspeed-alert-73120900", "uc4b-overspeed-alert-57e8341f"],
+        "destination_instances": ["object-speeds-ebc58ef6", "uc4a-object-speeds-97b64300", "uc4b-object-speeds-7e7cdffd"]
+      }
+    ],
+    "total": 1,
+    "messages": []
+  },
+  "_result": "retention_bytes and retention_ms are correctly unaffected by this single-field update -- unlike the pre-fix behavior, verified both via this endpoint response and a follow-up GET of the full config."
+}

@@ -1,0 +1,101 @@
+{
+    "services": [
+        {
+            "name": "crosswalk-safety-alert",
+            "description": "A microservice processing OSEF Zones data from LiDAR sensors. The processed data includes zone information such as zones definitions and bindings. The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of OSEF Zones data.",
+            "versions": [],
+            "dependencies": ["object-in-zone-detection", "object-speeds"]
+        },
+        {
+            "name": "flow-alert",
+            "description": "A microservice detecting flow anomalies based on object counts in zones. Monitors object counting data and triggers alerts when counts exceed thresholds. Reads from object-counting Kafka stream and produces flow alert events.",
+            "versions": [],
+            "dependencies": ["object-counting"]
+        },
+        {
+            "name": "lidar-osef-data-streamer",
+            "description": "A microservice for streaming OSEF data from LiDAR sensors. The service reads OSEF blobs from a source, processes them with a specified stride, and streams the processed data to Kafka.",
+            "versions": [],
+            "dependencies": []
+        },
+        {
+            "name": "object-counting",
+            "description": "A microservice counting objects within predefined areas over time intervals. Tracks object counts in zones for specified time frames (e.g., 5 minutes). Reads from object-in-zone-detection Kafka stream and produces object counting events.",
+            "versions": [],
+            "dependencies": ["object-in-zone-detection"]
+        },
+        {
+            "name": "object-in-zone-detection",
+            "description": "A microservice processing OSEF Zones data from LiDAR sensors. The processed data includes zone information such as zones definitions and bindings. The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of OSEF Zones data.",
+            "versions": [],
+            "dependencies": ["osef-tracked-objects", "osef-zones"]
+        },
+        {
+            "name": "object-speeds",
+            "description": "A microservice processing OSEF tracked-object data—object IDs, classes & names; kinematics (speed vectors & norms); 3D & SLAM poses; bounding-box sizes, footprints & vertices; and metadata (properties, age, peak heights, matching pairs, confidence). The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of tracked-object OSEF data.",
+            "versions": [],
+            "dependencies": ["osef-tracked-objects"]
+        },
+        {
+            "name": "osef-augmented-cloud",
+            "description": "A microservice processing OSEF augmented cloud data comprising information about the point cloud which captures the environment and objects in the scene. The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of augmented OSEF data.",
+            "versions": [],
+            "dependencies": ["lidar-osef-data-streamer"]
+        },
+        {
+            "name": "osef-scan-frame",
+            "description": "A microservice processing OSEF scan-frame data comprising information about the sensor’s 3D pose (translation and rotation), its geographic pose (latitude, longitude, heading) and geographic speed (speed and heading). The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of scan-frame OSEF data.",
+            "versions": [],
+            "dependencies": ["lidar-osef-data-streamer"]
+        },
+        {
+            "name": "osef-tracked-objects",
+            "description": "A microservice processing OSEF tracked-object data—object IDs, classes & names; kinematics (speed vectors & norms); 3D & SLAM poses; bounding-box sizes, footprints & vertices; and metadata (properties, age, peak heights, matching pairs, confidence). The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of tracked-object OSEF data.",
+            "versions": [],
+            "dependencies": ["lidar-osef-data-streamer"]
+        },
+        {
+            "name": "osef-zones",
+            "description": "A microservice processing OSEF Zones data from LiDAR sensors. The processed data includes zone information such as zones definitions and bindings. The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of OSEF Zones data.",
+            "versions": [],
+            "dependencies": ["lidar-osef-data-streamer"]
+        },
+        {
+            "name": "overspeed-alert",
+            "description": "A microservice detecting vehicles exceeding speed limits. Monitors vehicle speeds and generates alerts when speed thresholds are exceeded. Reads from object-speeds Kafka stream and produces overspeed alert events.",
+            "versions": [],
+            "dependencies": ["object-speeds", "osef-zones"]
+        },
+        {
+            "name": "traffic-jam-alert",
+            "description": "A microservice generating traffic jam alerts (start and stop) for monitored zones. Monitors traffic jam detector events and generates both start and stop alerts for traffic jams. Each jam is assigned a unique ID and tracked from start to stop. Reads from traffic-jam-detector Kafka stream and produces traffic jam alert events.",
+            "versions": [],
+            "dependencies": ["traffic-jam-detector"]
+        },
+        {
+            "name": "traffic-jam-detector",
+            "description": "A microservice detecting traffic jams based on vehicle speeds and zone occupancy. Monitors specified zones for low-speed, high-density vehicle patterns. Reads from object-speeds and object-in-zone-detection Kafka streams and produces traffic jam detection events.",
+            "versions": [],
+            "dependencies": ["object-in-zone-detection", "object-speeds"]
+        },
+        {
+            "name": "underspeed-alert",
+            "description": "A microservice detecting vehicles driving too slowly (underspeed). Monitors vehicle speeds and generates alerts when vehicles fall below minimum speed thresholds. Reads from object-speeds Kafka stream and produces underspeed alert events.",
+            "versions": [],
+            "dependencies": ["object-speeds", "osef-zones"]
+        },
+        {
+            "name": "zones-passing",
+            "description": "A microservice tracking objects passing between zones. Monitors zone transitions and records when objects move from one zone to another. Reads from object-in-zone-detection Kafka stream and produces zone passing events.",
+            "versions": [],
+            "dependencies": ["object-in-zone-detection"]
+        },
+        {
+            "name": "zones-passing-alert",
+            "description": "A microservice generating alerts for zone passing events. Monitors zone transitions and triggers alerts for specific crossing patterns. Reads from zones-passing Kafka stream and produces zone passing alert events.",
+            "versions": [],
+            "dependencies": ["zones-passing"]
+        }
+    ],
+    "total": 16
+}

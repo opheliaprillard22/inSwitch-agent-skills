@@ -1,0 +1,63 @@
+{
+  "_note": "Full response is 1035 lines (one SnapshotInstanceDetail per instance in the batch, 20 total). Below: the summary fields plus one representative entry (instances[0]) showing the complete shape.",
+  "snapshot_id": "2054e774-51fd-4a2d-b496-1d05827eef61",
+  "captured_at": "2026-09-14T09:20:08.666254Z",
+  "instance_count": 20,
+  "example_instance": {
+    "instance_name": "crosswalk-safety-alert-f8ec0894",
+    "service_name": "crosswalk-safety-alert",
+    "status": "ok",
+    "namespace": "intend",
+    "node": "node1-k8s",
+    "deployment_status": "Available",
+    "metrics_trackable": true,
+    "ram_memory_usage_mb": 142.89,
+    "pods": [
+      {
+        "name": "crosswalk-safety-alert-f8ec0894-5b885695c-rt49q",
+        "started": "2026-09-14T09:01:55+00:00",
+        "phase": "Running",
+        "ready": true,
+        "restart_count": 0
+      }
+    ],
+    "env_vars": {
+      "MAKE_MOCK": "False",
+      "APPROACH_ZONES": "L1_N_WS,L2_N_S",
+      "CROSSWALK_ZONE": "C5_W",
+      "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert",
+      "BUCKET_TIME_WINDOW_MS": "1000",
+      "BUCKET_MAX_AGE_SECONDS": "600",
+      "KAFKA_CONSUMER_GROUP_ID": "lidar.crosswalk_safety_alert-crosswalk-safety-alert-f8ec0894",
+      "VEHICLE_SPEED_THRESHOLD": "5.0",
+      "SOURCE_AUTO_OFFSET_RESET": "earliest",
+      "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+      "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+      "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.crosswalk_safety_alert_value",
+      "KAFKA_SOURCE_OBJECT_SPEEDS_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+      "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+      "KAFKA_SOURCE_OBJECT_SPEEDS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+      "KAFKA_SOURCE_OBJECT_SPEEDS_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value",
+      "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+      "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+    },
+    "kafka_topics": [
+      {"topic": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert", "bootstrap_server": "10.2.0.163:29092", "role": "destination"},
+      {"topic": "city_lab.paradise_mall_sofia.lidar.object_speeds", "bootstrap_server": "10.2.0.163:29092", "role": "source"},
+      {"topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection", "bootstrap_server": "10.2.0.163:29092", "role": "source"}
+    ],
+    "frequency_metrics": {
+      "window_seconds": 3600,
+      "message_count": 0,
+      "rate_msg_per_sec": 0.0,
+      "std_dev": 0.0,
+      "coefficient_of_variation": null,
+      "silence_ratio": 1.0,
+      "avg_inter_arrival_gap_sec": null,
+      "burstiness_index": null,
+      "health_score": null,
+      "total_size_bytes": 0,
+      "avg_message_size_bytes": null
+    }
+  }
+}

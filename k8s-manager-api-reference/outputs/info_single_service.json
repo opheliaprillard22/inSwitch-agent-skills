@@ -1,0 +1,108 @@
+{
+    "name": "object-speeds",
+    "description": "A microservice processing OSEF tracked-object data—object IDs, classes & names; kinematics (speed vectors & norms); 3D & SLAM poses; bounding-box sizes, footprints & vertices;  and metadata (properties, age, peak heights, matching pairs, confidence). The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of tracked-object OSEF data. ",
+    "versions": ["0.1.0"],
+    "dependencies": ["osef-tracked-objects"],
+    "required_env_vars": [
+        {
+            "name": "KAFKA_SOURCE_BOOTSTRAP_SERVER",
+            "type": "str",
+            "description": "Source Kafka bootstrap server in the format `host:port`. This is the server from which the service will consume messages.",
+            "value": "",
+            "required": true,
+            "possible_values": ["10.2.0.163:29092", "10.2.0.164:19092"]
+        },
+        {
+            "name": "KAFKA_DEST_BOOTSTRAP_SERVER",
+            "type": "str",
+            "description": "Destination Kafka bootstrap server in the format `host:port`. This is the server to which the service will produce messages.",
+            "value": "",
+            "required": true,
+            "possible_values": ["10.2.0.163:29092", "10.2.0.164:19092"]
+        },
+        {
+            "name": "KAFKA_SCHEMA_REGISTRY_URL",
+            "type": "str",
+            "description": "URL of the Schema Registry for Kafka.",
+            "value": "",
+            "required": true,
+            "possible_values": ["http://10.2.0.164:8081"]
+        }
+    ],
+    "optional_env_vars": [
+        {
+            "name": "OBJECT_TYPE_FILTER",
+            "type": "list",
+            "description": "List of object class names or IDs (as strings) to keep. Numeric entries are treated as class IDs; non-numeric entries are treated as class names. If empty, all object types are processed.",
+            "value": [],
+            "required": false,
+            "possible_values": ["PERSON", "TRUCK", "CAR", "TWO-WHEELER", "UNKNOWN"]
+        },
+        {
+            "name": "MAX_SOURCE_EMPTY_POLLS",
+            "type": "Union[int, NoneType]",
+            "description": "Maximum number of empty polls before timing out.",
+            "value": null,
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "SOURCE_AUTO_OFFSET_RESET",
+            "type": "str",
+            "description": "Where to start consuming messages if no committed offsets are found. Options are 'earliest' or 'latest'.",
+            "value": "latest",
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "STRIDE",
+            "type": "int",
+            "description": "Stride for processing the KAFKA stream of OSEF data. Set to 1 to process every message. Stride of 2 will process every second message.",
+            "value": 1,
+            "required": false,
+            "possible_values": null
+        }
+    ],
+    "frozen_env_vars": [
+        {
+            "name": "KAFKA_CONSUMER_GROUP_ID",
+            "type": "str",
+            "description": "Consumer group ID for the Kafka consumer.",
+            "value": "lidar.object_speeds",
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "KAFKA_SOURCE_TOPIC",
+            "type": "str",
+            "description": "Name of the Kafka topic to consume messages from. ",
+            "value": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT",
+            "type": "str",
+            "description": "Name of the schema value subject to use for the source topic. ",
+            "value": "lidar.osef.tracked_objects_value",
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "KAFKA_DEST_TOPIC",
+            "type": "str",
+            "description": "Name of the Kafka topic to produce messages to. ",
+            "value": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+            "required": false,
+            "possible_values": null
+        },
+        {
+            "name": "KAFKA_DEST_SCHEMA_VALUE_SUBJECT",
+            "type": "str",
+            "description": "Name of the schema value subject to use for the destination topic. This should match the schema file name in the schemas directory.",
+            "value": "lidar.object_speeds_value",
+            "required": false,
+            "possible_values": null
+        }
+    ]
+}

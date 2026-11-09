@@ -1,0 +1,86 @@
+{
+  "total": 16,
+  "service_names": [
+    "crosswalk-safety-alert", "flow-alert", "lidar-osef-data-streamer",
+    "object-counting", "object-in-zone-detection", "object-speeds",
+    "osef-augmented-cloud", "osef-scan-frame", "osef-tracked-objects",
+    "osef-zones", "overspeed-alert", "traffic-jam-alert",
+    "traffic-jam-detector", "underspeed-alert", "zones-passing",
+    "zones-passing-alert"
+  ],
+  "_note": "Full response is 3550 lines (one ServiceInfo per service). Below is one representative entry (services[0]) showing the complete shape -- the rest of the array repeats this structure for each service name listed above.",
+  "example_entry": {
+    "name": "crosswalk-safety-alert",
+    "description": "A microservice processing OSEF Zones data from LiDAR sensors. The processed data includes zone information such as zones definitions and bindings. The service reads a KAFKA stream of OSEF data from LiDAR sensors and produces a KAFKA stream of OSEF Zones data. ",
+    "versions": ["0.1.0"],
+    "dependencies": ["object-in-zone-detection", "object-speeds"],
+    "required_env_vars": [
+      {
+        "name": "CROSSWALK_ZONE",
+        "type": "str",
+        "description": "ID or name of the target crosswalk zone. Can be numeric (e.g., '5') or a string (e.g., 'C5_main'). If numeric, it will be compared to the zone_id field of the detection message. If string, it will be compared to the zone_name field. This logic is handled automatically in the engine.",
+        "value": "",
+        "required": true,
+        "possible_values": ["L10_all_e", "L11_all_e", "L13_s_n", "L14_s_n", "L15_all_s", "L16_all_s", "L17_all_s", "L18_w_es", "L19_w_e", "L20_w_n", "L21_ne_w", "L22_ne_w", "C4_s", "C3_e", "C1_n", "C2_n", "IS3_w", "SE4_s", "IS2_e", "IS1_n", "SE1_n", "SE2_n", "SE5_w", "SE6_w", "L3_n_e", "L2_n_s", "L1_n_ws", "I", "BB1_n", "IS4_w", "L6_e_n", "L7_e_w", "L8_e_sw", "L9_e_s", "L5_all_n", "L12_s_e", "C5_w", "SE3_e", "L4_all_n", "S_C5_w"]
+      },
+      {
+        "name": "APPROACH_ZONES",
+        "type": "str",
+        "description": "Comma-separated list of zone names or zone ids before the crosswalk (approach zones). Example: 'C5_before_1,C5_before_2', or '1,2'. Each entry can be a zone name (string) or a zone id (numeric as string). If numeric, it will be compared to the zone_id field of the detection message. If string, it will be compared to the zone_name field. This logic is handled automatically in the engine.",
+        "value": "",
+        "required": true,
+        "possible_values": ["L10_all_e", "L11_all_e", "L13_s_n", "L14_s_n", "L15_all_s", "L16_all_s", "L17_all_s", "L18_w_es", "L19_w_e", "L20_w_n", "L21_ne_w", "L22_ne_w", "C4_s", "C3_e", "C1_n", "C2_n", "IS3_w", "SE4_s", "IS2_e", "IS1_n", "SE1_n", "SE2_n", "SE5_w", "SE6_w", "L3_n_e", "L2_n_s", "L1_n_ws", "I", "BB1_n", "IS4_w", "L6_e_n", "L7_e_w", "L8_e_sw", "L9_e_s", "L5_all_n", "L12_s_e", "C5_w", "SE3_e", "L4_all_n", "S_C5_w"]
+      },
+      {
+        "name": "KAFKA_SOURCE_OBJECT_SPEEDS_BOOTSTRAP_SERVER",
+        "type": "str",
+        "description": "Source Kafka bootstrap server for object speeds topic in the format `host:port`. This is the server from which the service will consume speed messages.",
+        "value": "",
+        "required": true,
+        "possible_values": ["10.2.0.163:29092", "10.2.0.164:19092"]
+      },
+      {
+        "name": "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER",
+        "type": "str",
+        "description": "Source Kafka bootstrap server for object-in-zone detection topic in the format `host:port`. This is the server from which the service will consume detection messages.",
+        "value": "",
+        "required": true,
+        "possible_values": ["L10_all_e", "L11_all_e", "L13_s_n", "L14_s_n", "L15_all_s", "L16_all_s", "L17_all_s", "..."],
+        "_bug_note": "Live response shows this field's possible_values populated with the zone-name list instead of Kafka bootstrap servers. _inject_possible_values() in k8s_manager/api/routers/info.py matches on substring 'ZONE' before 'BOOTSTRAP_SERVER' -- since this var name contains 'ZONE' (from ...IN_ZONE_DETECTION...), it hits the zones branch first. Same leakage visible below on KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC and its SCHEMA_VALUE_SUBJECT sibling."
+      },
+      {
+        "name": "KAFKA_DEST_BOOTSTRAP_SERVER",
+        "type": "str",
+        "description": "Destination Kafka bootstrap server in the format `host:port`. This is the server to which the service will produce messages.",
+        "value": "",
+        "required": true,
+        "possible_values": ["10.2.0.163:29092", "10.2.0.164:19092"]
+      },
+      {
+        "name": "KAFKA_SCHEMA_REGISTRY_URL",
+        "type": "str",
+        "description": "URL of the Schema Registry for Kafka.",
+        "value": "",
+        "required": true,
+        "possible_values": ["http://10.2.0.164:8081"]
+      }
+    ],
+    "optional_env_vars": [
+      {"name": "VEHICLE_SPEED_THRESHOLD", "type": "float", "description": "Maximum speed (m/s) allowed for vehicles in approach zones. Default: 5.0 m/s (~18 km/h). Vehicles exceeding this speed will raise a PEDESTRIAN_VEHICLE_APPROACH alert.", "value": 5.0, "required": false, "possible_values": null},
+      {"name": "MAKE_MOCK", "type": "bool", "description": "If True, publishes random mock crosswalk safety alert messages every 1-2 seconds instead of executing the real logic. Messages are still consumed from topics. Default: False (use real logic).", "value": false, "required": false, "possible_values": null},
+      {"name": "MAX_SOURCE_EMPTY_POLLS", "type": "Union[int, NoneType]", "description": "Maximum number of empty polls before timing out.", "value": null, "required": false, "possible_values": null},
+      {"name": "SOURCE_AUTO_OFFSET_RESET", "type": "str", "description": "Where to start consuming messages if no committed offsets are found. Options are 'earliest' or 'latest'.", "value": "earliest", "required": false, "possible_values": null},
+      {"name": "BUCKET_TIME_WINDOW_MS", "type": "int", "description": "Time window in milliseconds for bucket matching. Messages within this window are grouped together for synchronization. Default: 1000ms (1 second).", "value": 1000, "required": false, "possible_values": null},
+      {"name": "BUCKET_MAX_AGE_SECONDS", "type": "int", "description": "Maximum age in seconds to keep time buckets before dropping them. Older buckets are discarded to prevent memory buildup. Default: 600 seconds (10 minutes).", "value": 600, "required": false, "possible_values": null},
+      {"name": "KAFKA_SOURCE_OBJECT_SPEEDS_TOPIC", "type": "str", "description": "Kafka topic for object speed data.", "value": "city_lab.paradise_mall_sofia.lidar.object_speeds", "required": false, "possible_values": null},
+      {"name": "KAFKA_SOURCE_OBJECT_SPEEDS_SCHEMA_VALUE_SUBJECT", "type": "str", "description": "Name of the schema value subject to use for the object speeds topic.", "value": "lidar.object_speeds_value", "required": false, "possible_values": null},
+      {"name": "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC", "type": "str", "description": "Kafka topic for object-in-zone detection data.", "value": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection", "required": false, "possible_values": ["L10_all_e", "L11_all_e", "..."]},
+      {"name": "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT", "type": "str", "description": "Name of the schema value subject to use for the object-in-zone detection topic.", "value": "lidar.object_in_zone_detection_value", "required": false, "possible_values": ["L10_all_e", "L11_all_e", "..."]}
+    ],
+    "frozen_env_vars": [
+      {"name": "KAFKA_CONSUMER_GROUP_ID", "type": "str", "description": "Consumer group ID for the Kafka consumer.", "value": "lidar.crosswalk_safety_alert", "required": false, "possible_values": null},
+      {"name": "KAFKA_DEST_TOPIC", "type": "str", "description": "Name of the Kafka topic to produce messages to. ", "value": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert", "required": false, "possible_values": null},
+      {"name": "KAFKA_DEST_SCHEMA_VALUE_SUBJECT", "type": "str", "description": "Name of the schema value subject to use for the destination topic. This should match the schema file name in the schemas directory.", "value": "lidar.crosswalk_safety_alert_value", "required": false, "possible_values": null}
+    ]
+  }
+}

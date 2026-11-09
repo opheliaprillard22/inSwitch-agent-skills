@@ -1,0 +1,11 @@
+{
+    "snapshots": [
+        {"snapshot_id": "2054e774-51fd-4a2d-b496-1d05827eef61", "captured_at": "2026-09-14T09:20:08.666254Z", "instance_count": 20},
+        {"snapshot_id": "3dfa7451-07df-4047-a77f-0a1ac9fcc714", "captured_at": "2026-09-14T09:00:00.763641Z", "instance_count": 20},
+        {"snapshot_id": "6eb2f214-8ab3-4a63-9f7a-a32c8cfee2a3", "captured_at": "2026-09-14T08:00:00.771299Z", "instance_count": 20},
+        {"snapshot_id": "3a5de747-94a3-4ef4-92d1-8c8bd71389cf", "captured_at": "2026-09-14T07:00:51.354456Z", "instance_count": 20},
+        {"snapshot_id": "149c4f06-481f-469f-aa57-7dd6173f053b", "captured_at": "2026-09-14T06:00:00.790860Z", "instance_count": 20}
+    ],
+    "total": 2526,
+    "_note": "total=2526 batches reflects the hourly k8s-manager-snapshot CronJob's long accumulated history, not just this session's manual POST."
+}

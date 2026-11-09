@@ -1,0 +1,7 @@
+Request:  DELETE /instances/doctest-object-speeds-8b90eae2
+
+Response:
+HTTP/1.1 204 No Content
+content-type: application/json
+
+(no body)

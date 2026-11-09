@@ -1,0 +1,28 @@
+{
+    "snapshot_id": "2054e774-51fd-4a2d-b496-1d05827eef61",
+    "captured_at": "2026-09-14T09:20:08.666254Z",
+    "instance_count": 20,
+    "instances": [
+        {"instance_name": "crosswalk-safety-alert-f8ec0894", "status": "ok"},
+        {"instance_name": "lidar-osef-data-streamer-fc271ce2", "status": "ok"},
+        {"instance_name": "object-in-zone-detection-0594be1b", "status": "ok"},
+        {"instance_name": "object-in-zone-detection-12e036d2", "status": "ok"},
+        {"instance_name": "object-in-zone-detection-62ecf550", "status": "ok"},
+        {"instance_name": "object-in-zone-detection-c526d06d", "status": "ok"},
+        {"instance_name": "object-speeds-ebc58ef6", "status": "ok"},
+        {"instance_name": "osef-tracked-objects-9c4c3d22", "status": "ok"},
+        {"instance_name": "osef-zones-0a356ee8", "status": "ok"},
+        {"instance_name": "uc4a-object-counting-385b212c", "status": "error"},
+        {"instance_name": "uc4a-object-counting-a44070d7", "status": "error"},
+        {"instance_name": "uc4a-object-in-zone-detection-b63df993", "status": "error"},
+        {"instance_name": "uc4a-object-in-zone-detection-bd8afabb", "status": "error"},
+        {"instance_name": "uc4a-object-speeds-97b64300", "status": "error"},
+        {"instance_name": "uc4a-overspeed-alert-73120900", "status": "error"},
+        {"instance_name": "uc4b-object-counting-6648b82c", "status": "error"},
+        {"instance_name": "uc4b-object-counting-db014979", "status": "error"},
+        {"instance_name": "uc4b-object-in-zone-detection-e807e0f9", "status": "error"},
+        {"instance_name": "uc4b-object-speeds-7e7cdffd", "status": "error"},
+        {"instance_name": "uc4b-overspeed-alert-57e8341f", "status": "error"}
+    ],
+    "_note": "'error' status for every uc4a-*/uc4b-* instance is expected, not a bug: those are the demo instances scaled to 0 replicas, so there's no pod IP to scrape sidecar metrics from."
+}

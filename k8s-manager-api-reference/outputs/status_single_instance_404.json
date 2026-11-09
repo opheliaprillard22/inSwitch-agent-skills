@@ -1,0 +1,11 @@
+HTTP/1.1 404 Not Found
+content-type: application/json
+
+{"detail":"Instance 'doctest-object-speeds-8b90eae2' not found."}
+
+_note: this file was originally captured against a nonexistent instance name
+(does-not-exist-xyz) to document the 404 shape in isolation. This second
+capture confirms the same 404 correctly appears for a real instance after
+it's been deleted via DELETE /instances/{name}, completing the full
+create -> inspect -> update -> update (restart-only) -> delete -> confirm-gone
+lifecycle demonstrated in this reference.

@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/instances",
+    "body": {
+      "service_name": "object-speeds",
+      "node_name": "node1-k8s",
+      "instance_prefix": "doctest",
+      "env_vars": {
+        "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+        "KAFKA_DEST_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+        "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+        "OBJECT_TYPE_FILTER": "[\"CAR\"]"
+      }
+    }
+  },
+  "response": {
+    "instance_name": "doctest-object-speeds-8b90eae2",
+    "service_name": "object-speeds",
+    "namespace": "intend",
+    "image": "ghcr.io/gate-institute/intend/object_speeds:latest",
+    "metrics_trackable": true
+  }
+}

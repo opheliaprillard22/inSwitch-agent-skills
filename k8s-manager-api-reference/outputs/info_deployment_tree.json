@@ -1,0 +1,30 @@
+{
+    "service_name": "object-speeds",
+    "parameters": {
+        "OBJECT_TYPE_FILTER": "[\"CAR\"]"
+    },
+    "dependencies": [
+        {
+            "service_name": "osef-tracked-objects",
+            "parameters": {
+                "STRIDE": "$STRIDE",
+                "OBJECT_TYPE_FILTER": "[\"CAR\"]",
+                "KAFKA_DEST_TOPIC": "$KAFKA_SOURCE_TOPIC",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "$KAFKA_SOURCE_BOOTSTRAP_SERVER",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_speeds.$stride.[\"car\"].255b60"
+            },
+            "dependencies": [
+                {
+                    "service_name": "lidar-osef-data-streamer",
+                    "parameters": {
+                        "STRIDE": "$STRIDE",
+                        "KAFKA_DEST_TOPIC": "$KAFKA_SOURCE_TOPIC",
+                        "KAFKA_DEST_BOOTSTRAP_SERVER": "$KAFKA_SOURCE_BOOTSTRAP_SERVER",
+                        "KAFKA_CONSUMER_GROUP_ID": "lidar.osef.tracked_objects.$stride.73701f"
+                    },
+                    "dependencies": []
+                }
+            ]
+        }
+    ]
+}

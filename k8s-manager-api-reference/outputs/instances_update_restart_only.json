@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "PUT",
+    "url": "/instances/doctest-object-speeds-8b90eae2",
+    "body": {}
+  },
+  "response": {
+    "instance_name": "doctest-object-speeds-8b90eae2",
+    "service_name": "object-speeds",
+    "namespace": "intend",
+    "image": "ghcr.io/gate-institute/intend/object_speeds:latest",
+    "metrics_trackable": true
+  },
+  "_note": "Same response shape as the env_vars update -- with an empty body (env_vars omitted), this triggers a pure rolling restart without touching the instance's existing configuration."
+}

@@ -1,0 +1,17 @@
+{
+    "instance_name": "object-speeds-ebc58ef6",
+    "service_name": "object-speeds",
+    "namespace": "intend",
+    "node": "node1-k8s",
+    "deployment_status": "Degraded",
+    "pods": [
+        {
+            "name": "object-speeds-ebc58ef6-79ff78c8b7-wzhb8",
+            "started": "2026-09-11T14:57:09+00:00",
+            "phase": "Running",
+            "ready": true,
+            "restart_count": 4
+        }
+    ],
+    "metrics_trackable": true
+}

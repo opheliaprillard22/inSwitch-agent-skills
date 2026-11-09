@@ -1,0 +1,15 @@
+{
+  "_note": "Captured after two fixes to GET /kafka/topics: (1) skip enrichment for locally-scoped (localhost) bootstrap servers instead of timing out on them (PR #4), and (2) resolve the real upstream broker for destination topics from the sidecar's UPSTREAM_BROKER env var instead of the redirected localhost proxy address (PR #5, gate-institute/k8s-manager). Before these fixes this call took 80s and returned 13 topics with 7 permanently null (message_count/config) due to unreachable localhost addresses. After both fixes: 0.142s and every topic is real (source/destination pairs on the same real topic now correctly collapse into one entry).",
+  "total": 8,
+  "topics": [
+    {"topic": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert", "bootstrap_server": "10.2.0.163:29092", "message_count": 0, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.object_speeds", "bootstrap_server": "10.2.0.163:29092", "message_count": 1764532, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection", "bootstrap_server": "10.2.0.163:29092", "message_count": 0, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer", "bootstrap_server": "10.2.0.163:29092", "message_count": 544, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.osef.zones", "bootstrap_server": "10.2.0.163:29092", "message_count": 31627, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects", "bootstrap_server": "10.2.0.163:29092", "message_count": 14075, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.object_counting", "bootstrap_server": "10.2.0.163:29092", "message_count": 0, "config": "set"},
+    {"topic": "city_lab.paradise_mall_sofia.lidar.overspeed_alert", "bootstrap_server": "10.2.0.163:29092", "message_count": 0, "config": "set"}
+  ],
+  "_zero_count_note": "message_count=0 for a few topics is legitimate here, not a bug: crosswalk_safety_alert/object_in_zone_detection/overspeed_alert only produce on specific detection events (short 3-minute retention means bursts age out fast between checks), and object_counting is only written by the uc4a/uc4b demo instances which are currently scaled to 0 replicas."
+}

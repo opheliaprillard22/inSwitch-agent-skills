@@ -1,0 +1,1013 @@
+{
+    "instances": [
+        {
+            "instance_name": "crosswalk-safety-alert-f8ec0894",
+            "service_name": "crosswalk-safety-alert",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "crosswalk-safety-alert-f8ec0894-5b885695c-qzzgx",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 0
+                }
+            ],
+            "env_vars": {
+                "CROSSWALK_ZONE": "C5_W",
+                "APPROACH_ZONES": "L1_N_WS,L2_N_S",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "VEHICLE_SPEED_THRESHOLD": "5.0",
+                "MAKE_MOCK": "False",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.crosswalk_safety_alert-crosswalk-safety-alert-f8ec0894",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.crosswalk_safety_alert_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.crosswalk_safety_alert",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 114.32,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 0,
+                "rate_msg_per_sec": 0.0,
+                "std_dev": 0.0,
+                "coefficient_of_variation": null,
+                "silence_ratio": 1.0,
+                "avg_inter_arrival_gap_sec": null,
+                "burstiness_index": null,
+                "health_score": null,
+                "total_size_bytes": 0,
+                "avg_message_size_bytes": null
+            }
+        },
+        {
+            "instance_name": "lidar-osef-data-streamer-fc271ce2",
+            "service_name": "lidar-osef-data-streamer",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "lidar-osef-data-streamer-fc271ce2-6dc9754c44-tr7nt",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "OSEF_SOURCE": "tcp://10.2.0.160:5000",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "STRIDE": "1",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.osef.frame_dict_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 59.11,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 0,
+                "rate_msg_per_sec": 0.0,
+                "std_dev": 0.0,
+                "coefficient_of_variation": null,
+                "silence_ratio": 1.0,
+                "avg_inter_arrival_gap_sec": null,
+                "burstiness_index": null,
+                "health_score": null,
+                "total_size_bytes": 0,
+                "avg_message_size_bytes": null
+            }
+        },
+        {
+            "instance_name": "object-in-zone-detection-0594be1b",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-0594be1b-5b86f9f7cc-qmktf",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"PERSON\"]",
+                "ZONES_OF_INTEREST": "[\"L1_n_ws\",\"L2_n_s\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-object-in-zone-detection-0594be1b",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 1729.88,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 0,
+                "rate_msg_per_sec": 0.0,
+                "std_dev": 0.0,
+                "coefficient_of_variation": null,
+                "silence_ratio": 1.0,
+                "avg_inter_arrival_gap_sec": null,
+                "burstiness_index": null,
+                "health_score": null,
+                "total_size_bytes": 0,
+                "avg_message_size_bytes": null
+            }
+        },
+        {
+            "instance_name": "object-in-zone-detection-12e036d2",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-12e036d2-d9c88957b-jgjtv",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"TRUCK\",\"CAR\",\"TWO-WHEELER\",\"UNKNOWN\"]",
+                "ZONES_OF_INTEREST": "[\"L1_n_ws\",\"L2_n_s\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-object-in-zone-detection-12e036d2",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 1826.93,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 194,
+                "rate_msg_per_sec": 0.0539,
+                "std_dev": 1.43,
+                "coefficient_of_variation": 26.5359,
+                "silence_ratio": 0.9953,
+                "avg_inter_arrival_gap_sec": 0.2726,
+                "burstiness_index": 0.9274,
+                "health_score": -1.0,
+                "total_size_bytes": 22390,
+                "avg_message_size_bytes": 115.41
+            }
+        },
+        {
+            "instance_name": "object-in-zone-detection-62ecf550",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-62ecf550-588f755f8-rsq2j",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[]",
+                "ZONES_OF_INTEREST": "[\"C5_w\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-object-in-zone-detection-62ecf550",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 1311.92,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 126,
+                "rate_msg_per_sec": 0.035,
+                "std_dev": 0.5695,
+                "coefficient_of_variation": 16.2714,
+                "silence_ratio": 0.9953,
+                "avg_inter_arrival_gap_sec": 0.1675,
+                "burstiness_index": 0.8842,
+                "health_score": -1.0,
+                "total_size_bytes": 22763,
+                "avg_message_size_bytes": 180.66
+            }
+        },
+        {
+            "instance_name": "object-in-zone-detection-c526d06d",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-in-zone-detection-c526d06d-67d64cb798-vfjj7",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[]",
+                "ZONES_OF_INTEREST": "[\"L1_n_ws\",\"L2_n_s\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-object-in-zone-detection-c526d06d",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 87.09,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 0,
+                "rate_msg_per_sec": 0.0,
+                "std_dev": 0.0,
+                "coefficient_of_variation": null,
+                "silence_ratio": 1.0,
+                "avg_inter_arrival_gap_sec": null,
+                "burstiness_index": null,
+                "health_score": null,
+                "total_size_bytes": 0,
+                "avg_message_size_bytes": null
+            }
+        },
+        {
+            "instance_name": "object-speeds-ebc58ef6",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "object-speeds-ebc58ef6-79ff78c8b7-wzhb8",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"TRUCK\",\"CAR\",\"TWO-WHEELER\",\"UNKNOWN\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "latest",
+                "STRIDE": "1",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_speeds-object-speeds-ebc58ef6",
+                "KAFKA_SOURCE_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 60.24,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 49914,
+                "rate_msg_per_sec": 13.865,
+                "std_dev": 245.9097,
+                "coefficient_of_variation": 17.736,
+                "silence_ratio": 0.9917,
+                "avg_inter_arrival_gap_sec": 0.0123,
+                "burstiness_index": 0.8933,
+                "health_score": -1.0,
+                "total_size_bytes": 2732185,
+                "avg_message_size_bytes": 54.74
+            }
+        },
+        {
+            "instance_name": "osef-tracked-objects-9c4c3d22",
+            "service_name": "osef-tracked-objects",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "osef-tracked-objects-9c4c3d22-6cb54fbd8b-v54t9",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "SOURCE_AUTO_OFFSET_RESET": "latest",
+                "STRIDE": "1",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.osef.tracked_objects-osef-tracked-objects-9c4c3d22",
+                "KAFKA_SOURCE_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT": "lidar.osef.frame_dict_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 67.86,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 3273,
+                "rate_msg_per_sec": 0.9092,
+                "std_dev": 12.8344,
+                "coefficient_of_variation": 14.1167,
+                "silence_ratio": 0.9903,
+                "avg_inter_arrival_gap_sec": 0.0134,
+                "burstiness_index": 0.8677,
+                "health_score": -1.0,
+                "total_size_bytes": 23123574,
+                "avg_message_size_bytes": 7064.95
+            }
+        },
+        {
+            "instance_name": "osef-zones-0a356ee8",
+            "service_name": "osef-zones",
+            "namespace": "intend",
+            "node": "node1-k8s",
+            "deployment_status": "Available",
+            "pods": [
+                {
+                    "name": "osef-zones-0a356ee8-558c44d9c4-s9gv7",
+                    "started": "2026-09-11T14:57:09+00:00",
+                    "phase": "Running",
+                    "ready": true,
+                    "restart_count": 2
+                }
+            ],
+            "env_vars": {
+                "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "SOURCE_AUTO_OFFSET_RESET": "latest",
+                "STRIDE": "1",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.osef.zones-osef-zones-0a356ee8",
+                "KAFKA_SOURCE_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT": "lidar.osef.frame_dict_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.data_streamer",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 58.0,
+            "frequency_metrics": {
+                "window_seconds": 3600,
+                "message_count": 0,
+                "rate_msg_per_sec": 0.0,
+                "std_dev": 0.0,
+                "coefficient_of_variation": null,
+                "silence_ratio": 1.0,
+                "avg_inter_arrival_gap_sec": null,
+                "burstiness_index": null,
+                "health_score": null,
+                "total_size_bytes": 0,
+                "avg_message_size_bytes": null
+            }
+        },
+        {
+            "instance_name": "uc4a-object-counting-385b212c",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "INTERVAL_DURATION_SECONDS": "300",
+                "ZONES_OF_INTEREST": "[\"C4_s\"]",
+                "OBJECT_TYPE_FILTER": "[\"PERSON\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_counting-uc4a-object-counting-385b212c",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_counting_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4a-object-counting-a44070d7",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "INTERVAL_DURATION_SECONDS": "300",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\"]",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_counting-uc4a-object-counting-a44070d7",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_counting_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4a-object-in-zone-detection-b63df993",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"PERSON\"]",
+                "ZONES_OF_INTEREST": "[\"C4_s\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-uc4a-object-in-zone-detection-b63df993",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4a-object-in-zone-detection-bd8afabb",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\"]",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-uc4a-object-in-zone-detection-bd8afabb",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4a-object-speeds-97b64300",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "latest",
+                "STRIDE": "1",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_speeds-uc4a-object-speeds-97b64300",
+                "KAFKA_SOURCE_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4a-overspeed-alert-73120900",
+            "service_name": "overspeed-alert",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_SPEEDS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OSEF_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\"]",
+                "SPEED_LIMIT": "8.33",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.overspeed_alert-uc4a-overspeed-alert-73120900",
+                "KAFKA_SOURCE_OSEF_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_OSEF_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.overspeed_alert",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.overspeed_alert_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.overspeed_alert",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4b-object-counting-6648b82c",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "INTERVAL_DURATION_SECONDS": "300",
+                "ZONES_OF_INTEREST": "[\"C4_s\"]",
+                "OBJECT_TYPE_FILTER": "[\"PERSON\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_counting-uc4b-object-counting-6648b82c",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_counting_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4b-object-counting-db014979",
+            "service_name": "object-counting",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "INTERVAL_DURATION_SECONDS": "300",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\"]",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_SOURCE_OBJECT_IN_ZONE_DETECTION_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_counting-uc4b-object-counting-db014979",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_counting_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_counting",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4b-object-in-zone-detection-e807e0f9",
+            "service_name": "object-in-zone-detection",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OBJECTS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\",\"PERSON\"]",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\",\"C4_s\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "STRIDE": "1",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.objects_in_zone_detection-uc4b-object-in-zone-detection-e807e0f9",
+                "KAFKA_SOURCE_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_SOURCE_OBJECTS_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_OBJECTS_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_in_zone_detection_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_in_zone_detection",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4b-object-speeds-7e7cdffd",
+            "service_name": "object-speeds",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "OBJECT_TYPE_FILTER": "[\"CAR\",\"TRUCK\",\"TWO-WHEELER\"]",
+                "SOURCE_AUTO_OFFSET_RESET": "latest",
+                "STRIDE": "1",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.object_speeds-uc4b-object-speeds-7e7cdffd",
+                "KAFKA_SOURCE_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                "KAFKA_SOURCE_SCHEMA_VALUE_SUBJECT": "lidar.osef.tracked_objects_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.tracked_objects",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        },
+        {
+            "instance_name": "uc4b-overspeed-alert-57e8341f",
+            "service_name": "overspeed-alert",
+            "namespace": "intend",
+            "node": null,
+            "deployment_status": "Available",
+            "pods": [],
+            "env_vars": {
+                "KAFKA_SOURCE_OBJECT_SPEEDS_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_SOURCE_OSEF_ZONES_BOOTSTRAP_SERVER": "10.2.0.163:29092",
+                "KAFKA_DEST_BOOTSTRAP_SERVER": "localhost:19092",
+                "KAFKA_SCHEMA_REGISTRY_URL": "http://10.2.0.164:8081",
+                "MAKE_MOCK": "False",
+                "ZONES_OF_INTEREST": "[\"L12_s_e\",\"L13_s_n\",\"L14_s_n\"]",
+                "SPEED_LIMIT": "8.33",
+                "SOURCE_AUTO_OFFSET_RESET": "earliest",
+                "BUCKET_TIME_WINDOW_MS": "1000",
+                "BUCKET_MAX_AGE_SECONDS": "600",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_TOPIC": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                "KAFKA_SOURCE_OBJECT_SPEEDS_SCHEMA_VALUE_SUBJECT": "lidar.object_speeds_value",
+                "KAFKA_CONSUMER_GROUP_ID": "lidar.overspeed_alert-uc4b-overspeed-alert-57e8341f",
+                "KAFKA_SOURCE_OSEF_ZONES_TOPIC": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                "KAFKA_SOURCE_OSEF_ZONES_SCHEMA_VALUE_SUBJECT": "lidar.osef.zones_value",
+                "KAFKA_DEST_TOPIC": "city_lab.paradise_mall_sofia.lidar.overspeed_alert",
+                "KAFKA_DEST_SCHEMA_VALUE_SUBJECT": "lidar.overspeed_alert_value"
+            },
+            "kafka_topics": [
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.overspeed_alert",
+                    "bootstrap_server": "localhost:19092",
+                    "role": "destination"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.object_speeds",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                },
+                {
+                    "topic": "city_lab.paradise_mall_sofia.lidar.osef.zones",
+                    "bootstrap_server": "10.2.0.163:29092",
+                    "role": "source"
+                }
+            ],
+            "metrics_trackable": true,
+            "ram_memory_usage_mb": 0.0,
+            "frequency_metrics": null
+        }
+    ],
+    "total": 20
+}
