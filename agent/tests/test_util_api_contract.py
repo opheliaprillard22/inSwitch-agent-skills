@@ -137,9 +137,11 @@ class IsServiceDeployedTests(unittest.TestCase):
     def setUp(self):
         self.status = captured("status_all.json")
         self._real_request = util._request
+        util.invalidate_status_cache()
 
     def tearDown(self):
         util._request = self._real_request
+        util.invalidate_status_cache()
 
     def _run(self, expected, payload=None):
         transport = RecordingTransport({("GET", "status"): payload or self.status})
@@ -302,23 +304,26 @@ class AuthHeaderTests(unittest.TestCase):
     USER = "fake-user"
     PASSWORD = "fake-password"
 
-    def _with(self, user, password):
+    ADMIN_KEY = "fake-admin-key"
+
+    def _with(self, user, password, admin_key=""):
         return (
             mock.patch.object(util, "K8S_MANAGER_USERNAME", user),
             mock.patch.object(util, "K8S_MANAGER_PASSWORD", password),
+            mock.patch.object(util, "K8S_MANAGER_ADMIN_KEY", admin_key),
         )
 
     def test_no_credentials_sends_no_header(self):
         # The local mock needs no auth; an empty config must stay silent.
         for user, password in (("", ""), (self.USER, ""), ("", self.PASSWORD)):
             with self.subTest(user=bool(user), password=bool(password)):
-                a, b = self._with(user, password)
-                with a, b:
+                ctx = self._with(user, password)
+                with ctx[0], ctx[1], ctx[2]:
                     self.assertEqual(util._auth_header(), {})
 
     def test_basic_header_is_well_formed(self):
-        a, b = self._with(self.USER, self.PASSWORD)
-        with a, b:
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2]:
             header = util._auth_header()
         self.assertEqual(list(header), ["Authorization"])
         scheme, _, encoded = header["Authorization"].partition(" ")
@@ -346,8 +351,8 @@ class AuthHeaderTests(unittest.TestCase):
             sent["url"] = request.full_url
             return FakeResponse()
 
-        a, b = self._with(self.USER, self.PASSWORD)
-        with a, b, mock.patch.object(util, "urlopen", fake_urlopen):
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2], mock.patch.object(util, "urlopen", fake_urlopen):
             util._request("GET", "https://example.invalid", "health")
 
         # urllib title-cases header names.
@@ -357,20 +362,25 @@ class AuthHeaderTests(unittest.TestCase):
         self.assertNotIn("@", sent["url"].split("://", 1)[1])
 
     def test_credentials_never_appear_in_built_urls(self):
-        a, b = self._with(self.USER, self.PASSWORD)
-        with a, b:
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2]:
             url = util._build_url("https://example.invalid", "status", {"name": "x"})
         self.assertNotIn(self.USER, url)
         self.assertNotIn(self.PASSWORD, url)
 
     def test_401_reports_the_env_vars_not_the_secret(self):
         def fake_urlopen(request, timeout=None):
+            # The ingress always challenges with WWW-Authenticate: Basic.
             raise urllib.error.HTTPError(
-                request.full_url, 401, "Unauthorized", {}, io.BytesIO(b"nope")
+                request.full_url,
+                401,
+                "Unauthorized",
+                {"WWW-Authenticate": 'Basic realm="Restricted"'},
+                io.BytesIO(b"nope"),
             )
 
-        a, b = self._with(self.USER, self.PASSWORD)
-        with a, b, mock.patch.object(util, "urlopen", fake_urlopen):
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2], mock.patch.object(util, "urlopen", fake_urlopen):
             with self.assertRaises(util.ApiError) as caught:
                 util._request("GET", "https://example.invalid", "health")
 
@@ -378,6 +388,103 @@ class AuthHeaderTests(unittest.TestCase):
         self.assertIn("K8S_MANAGER_USERNAME", message)
         self.assertNotIn(self.PASSWORD, message)
 
+    def test_admin_key_header_only_when_set(self):
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2]:
+            self.assertNotIn("X-Admin-Key", util._auth_header())
+
+        ctx = self._with(self.USER, self.PASSWORD, self.ADMIN_KEY)
+        with ctx[0], ctx[1], ctx[2]:
+            header = util._auth_header()
+        self.assertEqual(header["X-Admin-Key"], self.ADMIN_KEY)
+        self.assertIn("Authorization", header)
+
+    def test_admin_key_alone_still_sends_no_basic(self):
+        # Reads need Basic; a key without credentials must not fake one.
+        ctx = self._with("", "", self.ADMIN_KEY)
+        with ctx[0], ctx[1], ctx[2]:
+            header = util._auth_header()
+        self.assertEqual(list(header), ["X-Admin-Key"])
+
+    def test_401_distinguishes_the_two_gates(self):
+        """The ingress challenges with WWW-Authenticate; the app does not."""
+
+        def make_urlopen(headers):
+            def fake_urlopen(request, timeout=None):
+                raise urllib.error.HTTPError(
+                    request.full_url, 401, "Unauthorized", headers, io.BytesIO(b"{}")
+                )
+
+            return fake_urlopen
+
+        # ingress gate
+        ctx = self._with(self.USER, self.PASSWORD, self.ADMIN_KEY)
+        with ctx[0], ctx[1], ctx[2], mock.patch.object(
+            util, "urlopen", make_urlopen({"WWW-Authenticate": 'Basic realm="Restricted"'})
+        ):
+            with self.assertRaises(util.ApiError) as caught:
+                util._request("GET", "https://example.invalid", "health")
+        self.assertIn("ingress", str(caught.exception))
+
+        # application gate - no challenge header
+        ctx = self._with(self.USER, self.PASSWORD)
+        with ctx[0], ctx[1], ctx[2], mock.patch.object(util, "urlopen", make_urlopen({})):
+            with self.assertRaises(util.ApiError) as caught:
+                util._request("POST", "https://example.invalid", "instances")
+        message = str(caught.exception)
+        self.assertIn("K8S_MANAGER_ADMIN_KEY", message)
+        self.assertIn("is not set", message)
+        self.assertNotIn(self.PASSWORD, message)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatusCacheTests(unittest.TestCase):
+    """Comparing a plan set re-checks the same cluster state thousands of times.
+
+    The state is identical for every check, so it is fetched once per service
+    per process and dropped on any write.
+    """
+
+    STATUS = {"instances": [], "total": 0}
+
+    def setUp(self):
+        self._real_request = util._request
+        util.invalidate_status_cache()
+
+    def tearDown(self):
+        util._request = self._real_request
+        util.invalidate_status_cache()
+
+    def _count_requests(self):
+        calls = []
+
+        def fake(method, endpoint, path, params=None, body=None, timeout=None):
+            calls.append((method, path, (params or {}).get("name")))
+            return self.STATUS
+
+        util._request = fake
+        return calls
+
+    def test_repeat_lookups_hit_the_cache(self):
+        calls = self._count_requests()
+        for _ in range(200):
+            util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
+        self.assertEqual(len(calls), 1)
+
+    def test_each_service_is_fetched_once(self):
+        calls = self._count_requests()
+        for _ in range(50):
+            for name in ("object-speeds", "object-in-zone-detection", "flow-alert"):
+                util.is_service_deployed(None, {"service_name": name, "env_vars": {}})
+        self.assertEqual(len(calls), 3)
+
+    def test_writes_invalidate_the_cache(self):
+        calls = self._count_requests()
+        util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
+        util.create_instance(None, "object-speeds")
+        util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
+        status_calls = [c for c in calls if c[1] == "status"]
+        self.assertEqual(len(status_calls), 2, "state must be refetched after a write")

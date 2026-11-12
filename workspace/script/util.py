@@ -6,6 +6,8 @@ import base64
 import copy
 import json
 import os
+import sys
+import time
 from itertools import combinations
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -27,6 +29,12 @@ DEFAULT_SERVICE_ENDPOINT = os.getenv("K8S_MANAGER_URL", "http://test-api:8001")
 # sent on to the model. Empty by default so the local mock needs no config.
 K8S_MANAGER_USERNAME = os.getenv("K8S_MANAGER_USERNAME", "")
 K8S_MANAGER_PASSWORD = os.getenv("K8S_MANAGER_PASSWORD", "")
+
+# Second, separate gate. Basic auth at the ingress gets you in; the application
+# additionally requires an X-Admin-Key on every write: POST/PUT/DELETE
+# /instances, PATCH /kafka/topics/config, POST /snapshots and /admin/whoami.
+# Reads need only Basic auth, so this stays empty for read-only use.
+K8S_MANAGER_ADMIN_KEY = os.getenv("K8S_MANAGER_ADMIN_KEY", "")
 
 VEHICLE_TYPES = []
 APPROACH_ZONES = []
@@ -379,17 +387,24 @@ def _resolve_endpoint(service_endpoint: str | None) -> str:
 
 
 def _auth_header() -> dict[str, str]:
-    """Build the Basic auth header, or nothing when unconfigured.
+    """Build the auth headers for whatever is configured.
 
-    Both halves must be set; a half-configured pair sends no header rather than
-    an invalid one. Credentials go in a header and never in the URL, because
-    ApiError puts the URL in its message, which reaches the logs, the trace DB
-    and the model.
+    Two independent gates: HTTP Basic at the ingress (needed for everything)
+    and X-Admin-Key in the application (needed for writes only). Each is
+    omitted when unset, so the local mock works with no configuration and
+    read-only use needs no admin key. Basic needs both halves; a half-set pair
+    sends no header rather than an invalid one.
+
+    Secrets go in headers and never in the URL, because ApiError puts the URL
+    in its message, which reaches the logs, the trace DB and the model.
     """
-    if not (K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD):
-        return {}
-    raw = f"{K8S_MANAGER_USERNAME}:{K8S_MANAGER_PASSWORD}".encode("utf-8")
-    return {"Authorization": "Basic " + base64.b64encode(raw).decode("ascii")}
+    headers: dict[str, str] = {}
+    if K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD:
+        raw = f"{K8S_MANAGER_USERNAME}:{K8S_MANAGER_PASSWORD}".encode("utf-8")
+        headers["Authorization"] = "Basic " + base64.b64encode(raw).decode("ascii")
+    if K8S_MANAGER_ADMIN_KEY:
+        headers["X-Admin-Key"] = K8S_MANAGER_ADMIN_KEY
+    return headers
 
 
 def _build_url(
@@ -415,6 +430,119 @@ def _build_url(
     return url
 
 
+# --- request tracing -------------------------------------------------------
+#
+# Every call is one sequential blocking HTTPS round trip, so a loop over a large
+# plan set turns into thousands of them and looks exactly like a hang: the
+# subprocess produces no output and run_python has no timeout. These lines go
+# to stderr, which lands in the tool result, the agent log and `docker compose
+# logs`, so a runaway loop is visible while it is still running.
+#
+# Set K8S_MANAGER_DEBUG=0 to silence.
+
+_DEBUG = os.getenv("K8S_MANAGER_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
+_REQUEST_COUNT = 0
+_REQUEST_SECONDS = 0.0
+_REPEAT_WARNED = set()
+_SEEN = {}
+
+
+def _debug(message: str) -> None:
+    if _DEBUG:
+        print(f"[k8s-manager] {message}", file=sys.stderr, flush=True)
+
+
+def _debug_request_start(method: str, url: str) -> float:
+    """Log the outgoing request and warn when one is being repeated a lot."""
+    global _REQUEST_COUNT
+    _REQUEST_COUNT += 1
+    _debug(f"#{_REQUEST_COUNT} -> {method} {url}")
+
+    key = f"{method} {url}"
+    _SEEN[key] = _SEEN.get(key, 0) + 1
+    for threshold in (50, 200, 1000):
+        if _SEEN[key] == threshold and (key, threshold) not in _REPEAT_WARNED:
+            _REPEAT_WARNED.add((key, threshold))
+            _debug(
+                f"WARNING: {key} has now been sent {threshold} times in this "
+                "process. Each one is a separate blocking round trip - you are "
+                "probably looping over a plan set. Fetch the state once and "
+                "compare in memory instead."
+            )
+    return time.monotonic()
+
+
+def _debug_request_end(started: float, outcome: str) -> None:
+    global _REQUEST_SECONDS
+    elapsed = time.monotonic() - started
+    _REQUEST_SECONDS += elapsed
+    _debug(
+        f"#{_REQUEST_COUNT} <- {outcome} in {elapsed:.2f}s "
+        f"(total {_REQUEST_COUNT} requests, {_REQUEST_SECONDS:.1f}s)"
+    )
+
+
+def request_stats() -> dict[str, Any]:
+    """How many requests this process has made, and how long they took."""
+    return {
+        "requests": _REQUEST_COUNT,
+        "seconds": round(_REQUEST_SECONDS, 2),
+        "distinct": len(_SEEN),
+        "status_cache_hits": _CACHE_HITS,
+    }
+
+
+# --- status cache ----------------------------------------------------------
+#
+# Comparing a plan set against running state calls is_service_deployed once per
+# service per plan, and the cluster state is identical for all of them. A
+# 2351-plan set means ~16,800 requests where 3 would do, which reads as a hang.
+#
+# The cache lives for the process only - run_python starts a fresh interpreter
+# each turn, so state is never carried between turns - and any write clears it,
+# so a deploy followed by a check still sees the truth.
+#
+# Set K8S_MANAGER_CACHE=0 to disable.
+
+_CACHE_ENABLED = os.getenv("K8S_MANAGER_CACHE", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+_STATUS_CACHE: dict[tuple[str | None, str | None], list[dict[str, Any]]] = {}
+_CACHE_HITS = 0
+
+
+def _cached_status(
+    service_endpoint: str | None, service_name: str | None
+) -> list[dict[str, Any]]:
+    """GET /status?name=, reusing the answer within this process."""
+    global _CACHE_HITS
+    key = (service_endpoint, service_name)
+    if _CACHE_ENABLED and key in _STATUS_CACHE:
+        _CACHE_HITS += 1
+        if _CACHE_HITS in (50, 500, 5000):
+            _debug(
+                f"status cache has served {_CACHE_HITS} repeat lookups; "
+                "the cluster state is being re-checked in a loop"
+            )
+        return _STATUS_CACHE[key]
+
+    payload = _request(
+        "GET", service_endpoint, "status", params={"name": service_name}
+    )
+    instances = _instances_from_payload(payload)
+    if _CACHE_ENABLED:
+        _STATUS_CACHE[key] = instances
+    return instances
+
+
+def invalidate_status_cache() -> None:
+    """Drop cached cluster state. Called automatically after every write."""
+    _STATUS_CACHE.clear()
+
+
 def _request(
     method: str,
     service_endpoint: str | None,
@@ -428,6 +556,8 @@ def _request(
     DELETE /instances/{name} answers 204 with no body, so an empty response is
     a success case and must not be handed to json.loads.
     """
+    # print with colour
+    print(f"\033[1;34mDEBUG: _request({method}, {service_endpoint}, {relative_path}, {params}, {body})\033[0m", file=sys.stderr)
     url = _build_url(service_endpoint, relative_path, params)
     data = None
     headers = {"Accept": "application/json"}
@@ -437,11 +567,15 @@ def _request(
         headers["Content-Type"] = "application/json"
 
     request = Request(url, data=data, headers=headers, method=method)
+    started = _debug_request_start(method, url)
     try:
         with urlopen(request, timeout=timeout) as response:
             charset = response.headers.get_content_charset() or "utf-8"
             raw = response.read().decode(charset)
+            status = getattr(response, "status", None) or getattr(response, "code", "?")
+            _debug_request_end(started, f"{status} {len(raw)}B")
     except HTTPError as exc:
+        _debug_request_end(started, f"HTTP {exc.code}")
         raw_error = exc.read().decode("utf-8", errors="replace")
         detail = raw_error
         try:
@@ -451,14 +585,28 @@ def _request(
         if isinstance(parsed, dict):
             detail = str(parsed.get("detail") or parsed.get("error") or raw_error)
         if exc.code in (401, 403):
-            # Never echo the credentials themselves, only whether they are set.
-            configured = bool(K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD)
-            detail = (
-                "authentication failed; K8S_MANAGER_USERNAME/K8S_MANAGER_PASSWORD "
-                + ("are set but rejected" if configured else "are not set")
-            )
+            # Two different gates can answer 401, and confusing them wastes a
+            # lot of time. The ingress challenges with WWW-Authenticate: Basic;
+            # the application rejects a missing/wrong X-Admin-Key without one.
+            # Never echo a secret, only whether it is set.
+            challenge = (exc.headers.get("WWW-Authenticate") or "").lower()
+            if "basic" in challenge:
+                configured = bool(K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD)
+                detail = (
+                    "ingress rejected HTTP Basic auth; "
+                    "K8S_MANAGER_USERNAME/K8S_MANAGER_PASSWORD "
+                    + ("are set but wrong" if configured else "are not set")
+                )
+            else:
+                configured = bool(K8S_MANAGER_ADMIN_KEY)
+                detail = (
+                    f"{method} {relative_path} needs the admin API key; "
+                    "K8S_MANAGER_ADMIN_KEY "
+                    + ("is set but rejected" if configured else "is not set")
+                )
         raise ApiError(exc.code, detail[:500], url) from exc
     except URLError as exc:
+        _debug_request_end(started, f"connection failed: {exc.reason}")
         raise ApiError(0, f"connection failed: {exc.reason}", url) from exc
 
     if not raw.strip():
@@ -626,13 +774,17 @@ def get_running_instances(
     The only filter the real API defines is `name`. `short_info` omits
     env_vars, kafka_topics, ram_memory_usage_mb and frequency_metrics.
     """
-    payload = _request(
-        "GET",
-        service_endpoint,
-        "status",
-        params={"name": service_name, "short_info": short_info or None},
-    )
-    instances = _instances_from_payload(payload)
+    if short_info:
+        # short_info returns a different field set, so it bypasses the cache.
+        payload = _request(
+            "GET",
+            service_endpoint,
+            "status",
+            params={"name": service_name, "short_info": True},
+        )
+        instances = _instances_from_payload(payload)
+    else:
+        instances = _cached_status(service_endpoint, service_name)
     compact = []
     for item in instances:
         compact.append(
@@ -733,10 +885,7 @@ def is_service_deployed(
     if not isinstance(expected_env, dict):
         raise ValueError("expected.env_vars must be an object/dict")
 
-    payload = _request(
-        "GET", service_endpoint, "status", params={"name": service_name}
-    )
-    instances = _instances_from_payload(payload)
+    instances = _cached_status(service_endpoint, service_name)
 
     for instance in instances:
         if instance.get("service_name") != service_name:
@@ -805,7 +954,9 @@ def create_instance(
         body["node_name"] = node_name
     if instance_prefix:
         body["instance_prefix"] = instance_prefix
-    return _request("POST", service_endpoint, "instances", body=body) or {}
+    created = _request("POST", service_endpoint, "instances", body=body) or {}
+    invalidate_status_cache()
+    return created
 
 
 def update_instance(
@@ -828,6 +979,7 @@ def update_instance(
     result = _request(
         "PUT", service_endpoint, f"instances/{instance_name}", body=body
     )
+    invalidate_status_cache()
     return result or {}
 
 
@@ -838,4 +990,5 @@ def delete_instance(
     if not instance_name:
         raise ValueError("instance_name is required")
     _request("DELETE", service_endpoint, f"instances/{instance_name}")
+    invalidate_status_cache()
     return {"instance_name": instance_name, "deleted": True}

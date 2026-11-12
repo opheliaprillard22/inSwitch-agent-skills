@@ -429,8 +429,21 @@ Workflow:
    - `name`
    - `description`
    - direct `dependencies`
-3. Include required/optional env schema summary when present.
-4. Return `total`.
+3. Return `total`.
+
+Rules:
+
+- `get_deployable_services_basic` already requests `short_info=true`, so one
+  call returns the whole catalogue. Do not loop.
+- Do NOT call `get_service_env_schema` for every service to enrich this list.
+  That is one extra HTTP round trip per service, and the combined output is
+  large enough to be truncated before it reaches you. Fetch the env schema only
+  for the services actually selected for deployment, or when the user asks
+  about one specific service.
+- If a tool result comes back marked truncated, print less rather than
+  re-running the same code: select the fields you need, or print one item at a
+  time. The output is not written to a file anywhere, so do not go looking for
+  one.
 
 Output:
 
@@ -452,9 +465,17 @@ Switching to the real cluster is configuration only, never a code change:
 
 - `K8S_MANAGER_URL=https://intend-k8s-manager.gate-ai.eu` - the ingress, on 443.
   Port `8000` only applies to a local `kubectl port-forward`.
-- The real API is behind HTTP Basic auth. `util.py` reads
-  `K8S_MANAGER_USERNAME` and `K8S_MANAGER_PASSWORD` from the environment and
-  attaches the header itself, on every call.
+- The real API has two independent auth gates, and `util.py` attaches both
+  from the environment on every call. Never pass either as an argument.
+  - HTTP Basic at the ingress, from `K8S_MANAGER_USERNAME` and
+    `K8S_MANAGER_PASSWORD`. Required for every request.
+  - `X-Admin-Key`, from `K8S_MANAGER_ADMIN_KEY`. Required for **writes only**:
+    `POST /instances`, `PUT`/`DELETE /instances/{instance_name}`,
+    `PATCH /kafka/topics/config` and `POST /snapshots`. Every read works
+    without it, including `POST /info/{service_name}/deployment-tree`.
+- If a write fails with `401` and the message names `K8S_MANAGER_ADMIN_KEY`,
+  the deployment cannot proceed: report that the admin key is missing and stop.
+  Reads will keep working, so continue to answer status and catalogue questions.
 
 Credential rules, which are absolute:
 

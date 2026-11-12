@@ -419,6 +419,33 @@ def _compact_tool_output(result: Any) -> Any:
     if "matched_instance" in result:
         compact["matched_instance"] = _reduce_instance(result["matched_instance"])
 
+    # run_python / run_shell return {stdout, stderr, exit_code}. None of the
+    # structured keys below match, so without this the whole result collapses
+    # to the summary and the model is handed no output whatsoever - which it
+    # reads as "the output went somewhere else" and starts inventing log paths.
+    # Keep the head and tail of the text and say what was dropped.
+    if "exit_code" in result:
+        compact["exit_code"] = result["exit_code"]
+    for key in ("stdout", "stderr"):
+        text = result.get(key)
+        if not isinstance(text, str) or not text:
+            continue
+        budget = max(CONTEXT_COMPACTION_LIMIT - len(json.dumps(compact)) - 512, 512)
+        if len(text) <= budget:
+            compact[key] = text
+            continue
+        head = budget * 2 // 3
+        tail = budget - head
+        dropped = len(text) - head - tail
+        compact[key] = (
+            text[:head]
+            + f"\n\n... [{dropped} characters dropped; {key} was {len(text)} "
+            "characters. Print less: select the fields you need, or print one "
+            "item at a time.] ...\n\n"
+            + text[-tail:]
+        )
+        summary[f"{key}_truncated_chars"] = dropped
+
     def remaining_budget() -> int:
         used = len(json.dumps(compact, ensure_ascii=True, sort_keys=True))
         return max(CONTEXT_COMPACTION_LIMIT - used - 256, 512)

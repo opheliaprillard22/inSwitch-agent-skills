@@ -15,6 +15,10 @@ services:
       # Leave unset for the local mock, which needs no auth.
       - K8S_MANAGER_USERNAME=${K8S_MANAGER_USERNAME}
       - K8S_MANAGER_PASSWORD=${K8S_MANAGER_PASSWORD}
+      # Second gate: the application requires X-Admin-Key on every write
+      # (POST/PUT/DELETE /instances, PATCH /kafka/topics/config,
+      # POST /snapshots). Leave unset for read-only use.
+      - K8S_MANAGER_ADMIN_KEY=${K8S_MANAGER_ADMIN_KEY}
     volumes:
       - ./workspace:/workspace
       - ./logs:/logs
