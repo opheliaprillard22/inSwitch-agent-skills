@@ -1,6 +1,6 @@
 ---
 name: deploy-service-dfs
-description: Execute intent-driven service operations in k8s_manager. Main flow is dependency-first deployment from natural language intent; also supports listing running services and listing available deployable services. Alternative deployment plans are enumerated programmatically with generate_deployment_plans, not by the agent reasoning them out.
+description: Execute intent-driven service operations in k8s_manager. Main flow is dependency-first deployment from natural language intent; also supports listing running services and listing available deployable services. Only using the agent to find alternative plans and suggestions. 
 ---
 
 # Deploy Service DFS
@@ -34,7 +34,6 @@ Import example:
 import sys
 sys.path.append("/workspace/script")
 
-from util import generate_deployment_plans
 from util import get_deployable_services_basic
 from util import get_service_env_schema
 from util import get_running_instances
@@ -44,7 +43,7 @@ from util import update_instance
 from util import delete_instance
 ```
 
-### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
+<!-- ### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
 
 Purpose:
 
@@ -54,9 +53,7 @@ Purpose:
 
 Input:
 - `fixed_services`: list of services that must be included in every plan
-- `service_variants`: the service variants to consider. Either a flat list of
-  service entries (the form step 3a builds) or a dict keyed by service name;
-  both are normalized internally and give identical results.
+- `service_variants`: list of service variants to consider for deployment
 
 No-default rule:
 
@@ -78,17 +75,7 @@ Output JSON shape:
     }
   ]
 }
-```
-
-Rules:
-
-- Service names in the returned plans are hyphenated, matching the catalogue
-  (`object-in-zone-detection`, never `object_in_zone_detection`).
-- The planner enumerates every exact-cover combination, so the set grows fast:
-  the two-variant crosswalk scenario in step 3a alone produces over 2000 plans.
-  Never print, echo, or serialize the full set, and never write it to a file in
-  `/workspace`. Read `len(result["plans"])` for the count and index the few you
-  intend to show.
+``` -->
 
 ### `get_deployable_services_basic(service_endpoint: str) -> dict`
 
@@ -285,85 +272,37 @@ Keep the feedback to the user concise.
 
 Workflow:
 
-1. Call `get_deployable_services_basic(service_endpoint)` from `/workspace/script/util.py` to get service names, descriptions, and dependencies.
-2. Select one or more initial services based on the relevance between user intent and service descriptions. If no clear match, stop and ask user to clarify. Select only the essential services. Show the list of initial services, then ask user to confirm before proceeding.
-3. Resolve the dependency graph and generate a list of services. For each of these services:
-
-- Build env plan: Call `get_service_env_schema(service_endpoint, service_name)` from `/workspace/script/util.py`, then use the metadata to fill env values based on user intent, defaults, and common sense. If key required env values are not resolvable, ask user to provide them before proceeding.
-- When an env var publishes `possible_values`, only use values from that list. Never put anything from `frozen_env_vars` into an env plan.
-
-3.5. **Spatial reasoning (conditional).** If the selected service(s) accept zone-typed env vars (e.g. `FROM_ZONE`, `TO_ZONE`, `CROSSWALK_ZONE`, `APPROACH_ZONES`, `ZONES_OF_INTEREST`) AND the user intent does not contain canonical zone IDs (matching `^[LCISBE]+\d+_`), delegate to the `gate-spatial-reasoning` sub-agent.
-
-   - Folder path to delegate to: exactly `gate-spatial-reasoning`. It sits
-     directly under `/workspace`. Never prefix it with this skill's own name and
-     never invent a nested path.
-   - Pass the original user intent verbatim.
-   - The sub-agent returns a JSON object mapping spatial roles to canonical zone IDs, plus ranked alternatives and a rationale.
-   - If the sub-agent returns ambiguous candidates, surface them to the user as a single multiple-choice question instead of asking for raw zone IDs.
-   - Use the resolved zone IDs in step 3.
-
-3a. Before calling `generate_deployment_plans(fixed_services, service_variants)`, convert the user-facing intent selections into the exact planner payload that the function expects.
-
-   - The values already shown to the user are the source of truth: extract the actual object-type selections and the actual zone selections from those resolved intent values. If the intent was resolved by the `gate-spatial-reasoning` sub-agent, use the resolved zone IDs.
-   - Build `service_variants` as a list of service entries whose `env_vars` contain the exact selected keys, for example:
-     ```python
-     service_variants = [
-         {
-             "service_name": "object-in-zone-detection",
-             "env_vars": {
-                 "OBJECT_TYPE_FILTER": "PERSON",
-                 "ZONES_OF_INTEREST": "C5_W"
-             }
-         },
-         {
-             "service_name": "object-in-zone-detection",
-             "env_vars": {
-                 "OBJECT_TYPE_FILTER": "TRUCK,CAR,TWO-WHEELER,UNKNOWN",
-                 "ZONES_OF_INTEREST": "L1_N_WS,L2_N_S"
-             }
-         }
-     ]
-     ```
-   - Do not invent values, do not use defaults, and do not re-derive from a generic template when the actual intent values are already visible.
-   - If the intent has not produced actual object-type and zone selections, stop and return an empty plan set instead of calling the planner with placeholders.
-
-3b. Generate all deployment plans using `generate_deployment_plans(fixed_services, service_variants)` from `/workspace/script/util.py`. Do not recommend one over the other.
-
-Background rule: build the full canonical set internally from the actual selected service instances and their resolved env values only. Do not create a plan from defaults, synthetic object types, or synthetic zones. If the selected service env data does not contain a real object-type set and a real zone set, do not generate a fake scenario; keep the plan set empty and report that the required intent-driven inputs are missing.
-
-- For `object-in-zone-detection`, enumerate the full canonical set of alternatives internally, including every valid combination of object-type subsets and zone subsets that are actually selected from the service env configuration.
-- Preserve the complete internal set of valid plans, do not collapse to a single plan, and do not recommend one over the other.
-- When you present the result to the user, if more than four alternatives exist, show 4 user-facing alternatives, and explicitly label them as a shortlist drawn from the full valid set.
-- If there are more than 4 plans generated, present 4 of the alternative plans to the user. Keep the complete canonical set internally, and only show the shortlist in the user-facing response. Ask the user whether they would like to investigate which of the plans has the best performance. If yes, tell them that this function is currently a work-in-progress and ask which of the four alternatives they would like to proceed with. If no, ask them to select one of the four alternatives to proceed.
-- If there is only one valid plan, tell that to the user and proceed to step 4.
-- If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
-- The internal set must remain complete. Never write it to a file in `/workspace` to work around its size; keep it in memory for the turn.
-- The output should be a structure like:
-  ```json
-  {
-    "plans": [
-      {
-        "plan_name": "Alternative 1",
-        "services": [
-          {"service_name": "object-in-zone-detection", "action": "new_instance", "env_vars": {"OBJECT_TYPE_FILTER": "PERSON", "ZONES_OF_INTEREST": "C5_W"}},
-          {"service_name": "object-in-zone-detection", "action": "new_instance", "env_vars": {"OBJECT_TYPE_FILTER": "CAR,TRUCK,TWO-WHEELER", "ZONES_OF_INTEREST": "L1_N_WS,L2_N_S"}}
-        ]
-      }
-    ]
-  }
-  ```
-
-4. Get the current cluster state, then compare the plans against it. Call `get_running_instances(service_endpoint)` from `/workspace/script/util.py` first. Never assume or invent what is running, and never reuse a list of instances from an earlier turn: fetch it.
-
-- Ask the user if they want to proceed to check all the alternative deployment plans against services that are already deployed. If yes, for each service in a plan, check whether an instance with matching env is already deployed: call `is_service_deployed(service_endpoint, expected)` from `/workspace/script/util.py`. Only include the essential variables in the expected dict - ignore those with default values, those you are not certain about, and those related to `KAFKA`. If no instance is found, add the current service to `to_deploy` in post-order.
-- `is_service_deployed` reports a match on env values only. Check `matched_instance.ready` before counting an instance as reusable: an instance scaled to zero still matches on env but is not running.
-
-5. Based on the information from step 4, use the full internal set of alternative deployment plans and find the 3 best alternatives - meaning the plans that will re-use the most deployed instances. Ask the user to select one of the alternatives to proceed. If there is only one valid plan, tell that to the user and proceed to step 6. If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
-6. Show to-be-deployed lists, then ask: `Proceed with deployment? (yes/no)`. Again, ignore KAFKA-related env vars in the confirmation step.
-7. If confirmed, deploy each service in order with `create_instance(service_endpoint, service_name, env_vars=...)`. Do not hand-write `POST /instances`.
-8. Stop on first failure and return partial results.
-
-If DEBUG mode is ON: stop at step 3 to show inital services, at each iteration of DFS to show current node, env plan, and satisfiability check result, and ask users to continue.
+1. Call `get_deployable_services_basic(service_endpoint)` from `/workspace/script/util.py` to get the service catalog, descriptions, and dependencies.
+2. Select the essential initial services based on the user intent and the service descriptions. If no clear match exists, stop and ask the user to clarify.
+3. Resolve the dependency graph and build the ordered service set. For each service:
+   - call `get_service_env_schema(service_endpoint, service_name)`
+   - fill in the required env values from the user intent and the service metadata
+   - if zone-based values are involved and the intent is not already canonical
+     (canonical zone IDs match `^[LCISBE]+\d+_`), delegate to the
+     `gate-spatial-reasoning` sub-agent before continuing:
+     - Folder path to delegate to: exactly `gate-spatial-reasoning`. It sits
+       directly under `/workspace`. Never prefix it with this skill's own name
+       and never invent a nested path.
+     - Pass the original user intent verbatim.
+     - The sub-agent returns a JSON object mapping spatial roles to canonical
+       zone IDs, plus ranked alternatives and a rationale.
+     - If it returns ambiguous candidates, surface them to the user as a single
+       multiple-choice question rather than asking for raw zone IDs.
+     - Use the resolved zone IDs to fill the env plan.
+4. Get the current cluster state. Call `get_running_instances(service_endpoint)`
+   from `/workspace/script/util.py`. Never assume or invent what is running, and
+   never reuse a list of instances from an earlier turn: fetch it.
+   - For each candidate service plus env set, confirm with
+     `is_service_deployed(service_endpoint, expected)`. Put only the essential
+     variables in `expected` - skip anything with a default value, anything you
+     are unsure about, and anything `KAFKA`-related.
+5. Use the actual object-type and zone values extracted from the user intent as the source of truth and imagine all instances can be deployed separately or combined in all types of combinations. Keep the full set internally, compare them against reuse of the instances already running retrieved in step 4, CPU, memory, overlap, and complexity, and choose the different alternative deployment plans that meet the different criteria, but also note which is the strongest on in all aspects.
+   - If no actual object-type or zone values were resolved, do not invent defaults; stop and report that the required intent-backed values are missing.
+   - If there is only one valid candidate, say so clearly.
+6. Present the alternatives to the user and ask to choose one to proceed.
+7. Show the final to-be-deployed list and ask: `Proceed with deployment? (yes/no)`.
+8. If confirmed, deploy each service in order with `create_instance(...)`.
+9. Stop on the first failure and return any partial results.
 
 Determinism rules:
 
@@ -446,8 +385,25 @@ Default base URL:
 
 The functions in `/workspace/script/util.py` already default to this, read from
 the `K8S_MANAGER_URL` environment variable, so `service_endpoint` can be passed
-as `None`. The real k8s-manager listens on port `8000`, not `8001`; switching to
-it is a change to `K8S_MANAGER_URL` only.
+as `None`.
+
+Switching to the real cluster is configuration only, never a code change:
+
+- `K8S_MANAGER_URL=https://intend-k8s-manager.gate-ai.eu` - the ingress, on 443.
+  Port `8000` only applies to a local `kubectl port-forward`.
+- The real API is behind HTTP Basic auth. `util.py` reads
+  `K8S_MANAGER_USERNAME` and `K8S_MANAGER_PASSWORD` from the environment and
+  attaches the header itself, on every call.
+
+Credential rules, which are absolute:
+
+- Never pass credentials as a function argument, never put them in a URL, and
+  never print or echo them. Tool arguments and tool results are written verbatim
+  to `/logs`, streamed to the dashboard, and sent on to the model.
+- Never run a shell command that dumps the environment (`env`, `printenv`, `set`).
+- If a call fails with `401` or `403`, report that authentication failed and that
+  the two environment variables need checking. Do not attempt to read, guess, or
+  reconstruct the credentials, and do not ask the user to paste them into chat.
 
 ### Request Defaults
 

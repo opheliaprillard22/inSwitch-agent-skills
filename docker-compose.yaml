@@ -11,6 +11,10 @@ services:
       # Base URL for the k8s-manager API. The compose service DNS name points
       # at the local mock; override to target a real cluster (port 8000).
       - K8S_MANAGER_URL=${K8S_MANAGER_URL:-http://test-api:8001}
+      # HTTP Basic credentials for the real k8s-manager (ingress-protected).
+      # Leave unset for the local mock, which needs no auth.
+      - K8S_MANAGER_USERNAME=${K8S_MANAGER_USERNAME}
+      - K8S_MANAGER_PASSWORD=${K8S_MANAGER_PASSWORD}
     volumes:
       - ./workspace:/workspace
       - ./logs:/logs

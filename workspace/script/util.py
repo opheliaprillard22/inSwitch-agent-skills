@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import json
 import os
@@ -14,9 +15,18 @@ from urllib.request import Request, urlopen
 DEFAULT_TIMEOUT_SECONDS = 30
 
 # Base URL for the k8s-manager API. Defaults to the compose service DNS name
-# for the local mock; override with K8S_MANAGER_URL to point at a real
-# cluster (the real service listens on :8000, not :8001).
+# for the local mock; override with K8S_MANAGER_URL to point at a real cluster
+# (through the ingress that is https://<host> on 443; :8000 only applies to a
+# kubectl port-forward).
 DEFAULT_SERVICE_ENDPOINT = os.getenv("K8S_MANAGER_URL", "http://test-api:8001")
+
+# Credentials for the real k8s-manager, which sits behind HTTP Basic auth at
+# the ingress. Read from the environment here and applied inside _request, so
+# they never pass through a function argument, a URL or an error string - all
+# three of those are written verbatim to /logs, streamed to the dashboard and
+# sent on to the model. Empty by default so the local mock needs no config.
+K8S_MANAGER_USERNAME = os.getenv("K8S_MANAGER_USERNAME", "")
+K8S_MANAGER_PASSWORD = os.getenv("K8S_MANAGER_PASSWORD", "")
 
 VEHICLE_TYPES = []
 APPROACH_ZONES = []
@@ -368,6 +378,20 @@ def _resolve_endpoint(service_endpoint: str | None) -> str:
     return (service_endpoint or DEFAULT_SERVICE_ENDPOINT).rstrip("/")
 
 
+def _auth_header() -> dict[str, str]:
+    """Build the Basic auth header, or nothing when unconfigured.
+
+    Both halves must be set; a half-configured pair sends no header rather than
+    an invalid one. Credentials go in a header and never in the URL, because
+    ApiError puts the URL in its message, which reaches the logs, the trace DB
+    and the model.
+    """
+    if not (K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD):
+        return {}
+    raw = f"{K8S_MANAGER_USERNAME}:{K8S_MANAGER_PASSWORD}".encode("utf-8")
+    return {"Authorization": "Basic " + base64.b64encode(raw).decode("ascii")}
+
+
 def _build_url(
     service_endpoint: str | None,
     relative_path: str,
@@ -407,6 +431,7 @@ def _request(
     url = _build_url(service_endpoint, relative_path, params)
     data = None
     headers = {"Accept": "application/json"}
+    headers.update(_auth_header())
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -425,6 +450,13 @@ def _request(
             parsed = None
         if isinstance(parsed, dict):
             detail = str(parsed.get("detail") or parsed.get("error") or raw_error)
+        if exc.code in (401, 403):
+            # Never echo the credentials themselves, only whether they are set.
+            configured = bool(K8S_MANAGER_USERNAME and K8S_MANAGER_PASSWORD)
+            detail = (
+                "authentication failed; K8S_MANAGER_USERNAME/K8S_MANAGER_PASSWORD "
+                + ("are set but rejected" if configured else "are not set")
+            )
         raise ApiError(exc.code, detail[:500], url) from exc
     except URLError as exc:
         raise ApiError(0, f"connection failed: {exc.reason}", url) from exc

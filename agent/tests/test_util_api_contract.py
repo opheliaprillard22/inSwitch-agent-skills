@@ -3,11 +3,15 @@
 Based on the responses in k8s-manager-api-reference/outputs/
 """
 
+import base64
+import email.message
 import importlib.util
 import io
 import json
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUTS = REPO_ROOT / "k8s-manager-api-reference" / "outputs"
@@ -286,6 +290,93 @@ class WriteSurfaceTests(unittest.TestCase):
         result = util.delete_instance("http://h:8000", "x")
         self.assertEqual(transport.calls[0]["method"], "DELETE")
         self.assertTrue(result["deleted"])
+
+
+class AuthHeaderTests(unittest.TestCase):
+    """The real k8s-manager sits behind HTTP Basic auth at the ingress.
+
+    These test _auth_header directly: RecordingTransport replaces _request
+    wholesale, so nothing else in this file exercises header construction.
+    """
+
+    USER = "fake-user"
+    PASSWORD = "fake-password"
+
+    def _with(self, user, password):
+        return (
+            mock.patch.object(util, "K8S_MANAGER_USERNAME", user),
+            mock.patch.object(util, "K8S_MANAGER_PASSWORD", password),
+        )
+
+    def test_no_credentials_sends_no_header(self):
+        # The local mock needs no auth; an empty config must stay silent.
+        for user, password in (("", ""), (self.USER, ""), ("", self.PASSWORD)):
+            with self.subTest(user=bool(user), password=bool(password)):
+                a, b = self._with(user, password)
+                with a, b:
+                    self.assertEqual(util._auth_header(), {})
+
+    def test_basic_header_is_well_formed(self):
+        a, b = self._with(self.USER, self.PASSWORD)
+        with a, b:
+            header = util._auth_header()
+        self.assertEqual(list(header), ["Authorization"])
+        scheme, _, encoded = header["Authorization"].partition(" ")
+        self.assertEqual(scheme, "Basic")
+        decoded = base64.b64decode(encoded).decode("utf-8")
+        self.assertEqual(decoded, f"{self.USER}:{self.PASSWORD}")
+
+    def test_request_attaches_the_header(self):
+        sent = {}
+
+        class FakeResponse:
+            headers = email.message.Message()
+
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_urlopen(request, timeout=None):
+            sent["headers"] = dict(request.headers)
+            sent["url"] = request.full_url
+            return FakeResponse()
+
+        a, b = self._with(self.USER, self.PASSWORD)
+        with a, b, mock.patch.object(util, "urlopen", fake_urlopen):
+            util._request("GET", "https://example.invalid", "health")
+
+        # urllib title-cases header names.
+        self.assertIn("Authorization", {k.title(): v for k, v in sent["headers"].items()})
+        # Credentials must never ride in the URL: ApiError puts it in its message.
+        self.assertNotIn(self.PASSWORD, sent["url"])
+        self.assertNotIn("@", sent["url"].split("://", 1)[1])
+
+    def test_credentials_never_appear_in_built_urls(self):
+        a, b = self._with(self.USER, self.PASSWORD)
+        with a, b:
+            url = util._build_url("https://example.invalid", "status", {"name": "x"})
+        self.assertNotIn(self.USER, url)
+        self.assertNotIn(self.PASSWORD, url)
+
+    def test_401_reports_the_env_vars_not_the_secret(self):
+        def fake_urlopen(request, timeout=None):
+            raise urllib.error.HTTPError(
+                request.full_url, 401, "Unauthorized", {}, io.BytesIO(b"nope")
+            )
+
+        a, b = self._with(self.USER, self.PASSWORD)
+        with a, b, mock.patch.object(util, "urlopen", fake_urlopen):
+            with self.assertRaises(util.ApiError) as caught:
+                util._request("GET", "https://example.invalid", "health")
+
+        message = str(caught.exception)
+        self.assertIn("K8S_MANAGER_USERNAME", message)
+        self.assertNotIn(self.PASSWORD, message)
 
 
 if __name__ == "__main__":
