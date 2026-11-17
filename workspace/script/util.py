@@ -6,6 +6,7 @@ import base64
 import copy
 import json
 import os
+import secrets
 import sys
 import time
 from itertools import combinations
@@ -42,12 +43,27 @@ PEDESTRIAN_TYPES = []
 CROSSWALK_ZONES = []
 
 
+def _dedupe_preserving_case(values: list[str], seen: dict[str, str]) -> None:
+    """Record values case-insensitively while keeping the casing supplied.
+
+    Zone IDs are matched literally by the services, and the catalogue
+    publishes them mixed-case (C5_w, L1_n_ws). Uppercasing them produces IDs
+    that match nothing, so comparison is case-folded but the stored value is
+    whatever the caller gave us.
+    """
+    for item in values:
+        if not item or not item.strip():
+            continue
+        item = item.strip()
+        seen.setdefault(item.casefold(), item)
+
+
 def _derive_scenario(
     fixed_services: list[dict[str, Any]] | None = None,
     service_variants: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    object_types: set[str] = set()
-    zones: set[str] = set()
+    object_type_map: dict[str, str] = {}
+    zone_map: dict[str, str] = {}
 
     services_to_scan: list[dict[str, Any]] = []
     services_to_scan.extend(fixed_services or [])
@@ -56,36 +72,13 @@ def _derive_scenario(
 
     for service in services_to_scan:
         env_vars = (service.get("env_vars") or {}) if isinstance(service, dict) else {}
-        object_types.update(
-            item.upper()
-            for item in _as_list(env_vars.get("OBJECT_TYPE_FILTER"))
-            if item and item.strip()
-        )
-        object_types.update(
-            item.upper()
-            for item in _as_list(env_vars.get("OBJECT_TYPES"))
-            if item and item.strip()
-        )
-        zones.update(
-            item.upper()
-            for item in _as_list(env_vars.get("ZONES_OF_INTEREST"))
-            if item and item.strip()
-        )
-        zones.update(
-            item.upper()
-            for item in _as_list(env_vars.get("APPROACH_ZONES"))
-            if item and item.strip()
-        )
-        zones.update(
-            item.upper()
-            for item in _as_list(env_vars.get("CROSSWALK_ZONE"))
-            if item and item.strip()
-        )
-        zones.update(
-            item.upper()
-            for item in _as_list(env_vars.get("ZONE"))
-            if item and item.strip()
-        )
+        for key in ("OBJECT_TYPE_FILTER", "OBJECT_TYPES"):
+            _dedupe_preserving_case(_as_list(env_vars.get(key)), object_type_map)
+        for key in ("ZONES_OF_INTEREST", "APPROACH_ZONES", "CROSSWALK_ZONE", "ZONE"):
+            _dedupe_preserving_case(_as_list(env_vars.get(key)), zone_map)
+
+    object_types = set(object_type_map.values())
+    zones = set(zone_map.values())
 
     vehicle_types = sorted({t for t in object_types if t.upper() != "PERSON"}, key=str)
     pedestrian_types = sorted(
@@ -344,8 +337,10 @@ def generate_deployment_plans(
                     "service_name": "object-in-zone-detection",
                     "action": "new_instance",
                     "env_vars": {
-                        "OBJECT_TYPE_FILTER": ",".join(sorted(inst["types"])),
-                        "ZONES_OF_INTEREST": ",".join(sorted(inst["zones"])),
+                        # list-valued per the catalogue; _stringify_env
+                        # JSON-encodes these on the way to the API
+                        "OBJECT_TYPE_FILTER": sorted(inst["types"]),
+                        "ZONES_OF_INTEREST": sorted(inst["zones"]),
                     },
                 }
             )
@@ -759,15 +754,16 @@ def _compact_instance(
     }
 
 
-def get_health(service_endpoint: str | None = None) -> dict[str, Any]:
+def get_health(*, service_endpoint: str | None = None) -> dict[str, Any]:
     """GET /health - pre-flight check that k8s-manager is reachable."""
     return _request("GET", service_endpoint, "health") or {}
 
 
 def get_running_instances(
-    service_endpoint: str | None = None,
     service_name: str | None = None,
     short_info: bool = False,
+    *,
+    service_endpoint: str | None = None,
 ) -> dict[str, Any]:
     """GET /status, optionally filtered to one service.
 
@@ -803,6 +799,7 @@ def get_running_instances(
 
 
 def get_deployable_services_basic(
+    *,
     service_endpoint: str | None = None,
 ) -> dict[str, Any]:
     """Fetch deployable services and return only name/description/dependencies.
@@ -830,7 +827,7 @@ def get_deployable_services_basic(
 
 
 def get_service_env_schema(
-    service_endpoint: str | None, service_name: str
+    service_name: str, *, service_endpoint: str | None = None
 ) -> dict[str, Any]:
     """Fetch env var metadata for one service from GET /info/{service_name}.
 
@@ -866,13 +863,13 @@ def get_service_env_schema(
 
 
 def is_service_deployed(
-    service_endpoint: str | None, expected: dict[str, Any]
+    expected: dict[str, Any], *, service_endpoint: str | None = None
 ) -> dict[str, Any]:
     """Check whether a deployed instance matches the expected env var values.
 
     Args:
-        service_endpoint: Base API endpoint, or None for K8S_MANAGER_URL.
         expected: {"service_name": str, "env_vars": {str: Any}}
+        service_endpoint: optional override; defaults to K8S_MANAGER_URL.
 
     Returns:
         {"service_name": str, "is_deployed": bool, "matched_instance": dict | None}
@@ -926,13 +923,53 @@ def _stringify_env(env_vars: dict[str, Any]) -> dict[str, str]:
     return rendered
 
 
+def experiment_prefix() -> str:
+    """A short id that tags every instance created in this session.
+
+    Instance names become `<prefix>-<service>-<hash>`, so everything deployed
+    by one experiment can be found and cleaned up together.
+
+    K8S_MANAGER_EXPERIMENT wins if set. Otherwise one is generated and cached
+    beside this module: run_python starts a fresh interpreter per snippet, so
+    without the file every call would invent a different prefix.
+    """
+    configured = os.getenv("K8S_MANAGER_EXPERIMENT", "").strip()
+    if configured:
+        return _safe_prefix(configured)
+
+    marker = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".experiment_id")
+    try:
+        with open(marker, encoding="utf-8") as handle:
+            cached = handle.read().strip()
+        if cached:
+            return _safe_prefix(cached)
+    except OSError:
+        pass
+
+    generated = "exp" + secrets.token_hex(3)
+    try:
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write(generated)
+    except OSError:
+        pass  # non-fatal: worst case each process picks its own
+    return generated
+
+
+def _safe_prefix(value: str) -> str:
+    """Instance names are DNS labels: lowercase alphanumerics and dashes."""
+    cleaned = "".join(c if c.isalnum() else "-" for c in value.lower())
+    cleaned = cleaned.strip("-")
+    return cleaned[:20] or "exp"
+
+
 def create_instance(
-    service_endpoint: str | None,
     service_name: str,
     env_vars: dict[str, Any] | None = None,
     node_name: str | None = None,
     instance_prefix: str | None = None,
     metrics_trackable: bool = True,
+    *,
+    service_endpoint: str | None = None,
 ) -> dict[str, Any]:
     """POST /instances.
 
@@ -952,17 +989,17 @@ def create_instance(
     }
     if node_name:
         body["node_name"] = node_name
-    if instance_prefix:
-        body["instance_prefix"] = instance_prefix
+    body["instance_prefix"] = _safe_prefix(instance_prefix or experiment_prefix())
     created = _request("POST", service_endpoint, "instances", body=body) or {}
     invalidate_status_cache()
     return created
 
 
 def update_instance(
-    service_endpoint: str | None,
     instance_name: str,
     env_vars: dict[str, Any] | None = None,
+    *,
+    service_endpoint: str | None = None,
 ) -> dict[str, Any]:
     """PUT /instances/{instance_name}.
 
@@ -984,7 +1021,7 @@ def update_instance(
 
 
 def delete_instance(
-    service_endpoint: str | None, instance_name: str
+    instance_name: str, *, service_endpoint: str | None = None
 ) -> dict[str, Any]:
     """DELETE /instances/{instance_name}. Answers 204 with no body."""
     if not instance_name:

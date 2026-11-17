@@ -146,7 +146,7 @@ class IsServiceDeployedTests(unittest.TestCase):
     def _run(self, expected, payload=None):
         transport = RecordingTransport({("GET", "status"): payload or self.status})
         util._request = transport
-        result = util.is_service_deployed("http://h:8000", expected)
+        result = util.is_service_deployed(expected, service_endpoint="http://h:8000")
         return result, transport
 
     def test_calls_status_with_name_filter_once(self):
@@ -206,7 +206,7 @@ class IsServiceDeployedTests(unittest.TestCase):
 
     def test_requires_service_name(self):
         with self.assertRaises(ValueError):
-            util.is_service_deployed("http://h:8000", {"env_vars": {}})
+            util.is_service_deployed({"env_vars": {}}, service_endpoint="http://h:8000")
 
 
 class CatalogueTests(unittest.TestCase):
@@ -220,7 +220,9 @@ class CatalogueTests(unittest.TestCase):
         payload = captured("info_single_service.json")
         transport = RecordingTransport({("GET", "info/object-speeds"): payload})
         util._request = transport
-        schema = util.get_service_env_schema("http://h:8000", "object-speeds")
+        schema = util.get_service_env_schema(
+            "object-speeds", service_endpoint="http://h:8000"
+        )
         self.assertEqual(transport.calls[0]["path"], "info/object-speeds")
         self.assertEqual(
             [v["name"] for v in schema["frozen_env_vars"]],
@@ -234,13 +236,13 @@ class CatalogueTests(unittest.TestCase):
             error=util.ApiError(404, "Service 'nope' not found.", "http://h/info/nope")
         )
         with self.assertRaises(ValueError):
-            util.get_service_env_schema("http://h:8000", "nope")
+            util.get_service_env_schema("nope", service_endpoint="http://h:8000")
 
     def test_catalogue_uses_short_info(self):
         payload = captured("info_services_short.json")
         transport = RecordingTransport({("GET", "info/services"): payload})
         util._request = transport
-        result = util.get_deployable_services_basic("http://h:8000")
+        result = util.get_deployable_services_basic(service_endpoint="http://h:8000")
         self.assertEqual(transport.calls[0]["params"], {"short_info": True})
         self.assertEqual(result["total"], payload["total"])
         self.assertEqual(
@@ -262,8 +264,8 @@ class WriteSurfaceTests(unittest.TestCase):
         )
         util._request = transport
         util.create_instance(
-            "http://h:8000",
             "object-speeds",
+            service_endpoint="http://h:8000",
             env_vars={"OBJECT_TYPE_FILTER": ["CAR"], "STRIDE": 1},
             node_name="node1-k8s",
             instance_prefix="doctest",
@@ -282,14 +284,14 @@ class WriteSurfaceTests(unittest.TestCase):
             {("PUT", "instances/x"): captured("instances_update_restart_only.json")}
         )
         util._request = transport
-        util.update_instance("http://h:8000", "x")
+        util.update_instance("x", service_endpoint="http://h:8000")
         self.assertEqual(transport.calls[0]["method"], "PUT")
         self.assertEqual(transport.calls[0]["body"], {})
 
     def test_delete_tolerates_empty_body(self):
         transport = RecordingTransport({("DELETE", "instances/x"): None})
         util._request = transport
-        result = util.delete_instance("http://h:8000", "x")
+        result = util.delete_instance("x", service_endpoint="http://h:8000")
         self.assertEqual(transport.calls[0]["method"], "DELETE")
         self.assertTrue(result["deleted"])
 
@@ -471,20 +473,20 @@ class StatusCacheTests(unittest.TestCase):
     def test_repeat_lookups_hit_the_cache(self):
         calls = self._count_requests()
         for _ in range(200):
-            util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
+            util.is_service_deployed({"service_name": "object-speeds", "env_vars": {}})
         self.assertEqual(len(calls), 1)
 
     def test_each_service_is_fetched_once(self):
         calls = self._count_requests()
         for _ in range(50):
             for name in ("object-speeds", "object-in-zone-detection", "flow-alert"):
-                util.is_service_deployed(None, {"service_name": name, "env_vars": {}})
+                util.is_service_deployed({"service_name": name, "env_vars": {}})
         self.assertEqual(len(calls), 3)
 
     def test_writes_invalidate_the_cache(self):
         calls = self._count_requests()
-        util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
-        util.create_instance(None, "object-speeds")
-        util.is_service_deployed(None, {"service_name": "object-speeds", "env_vars": {}})
+        util.is_service_deployed({"service_name": "object-speeds", "env_vars": {}})
+        util.create_instance("object-speeds")
+        util.is_service_deployed({"service_name": "object-speeds", "env_vars": {}})
         status_calls = [c for c in calls if c[1] == "status"]
         self.assertEqual(len(status_calls), 2, "state must be refetched after a write")

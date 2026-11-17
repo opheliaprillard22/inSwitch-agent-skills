@@ -241,3 +241,6 @@ agent/openai.credential
 
 # Helm charts (local, not to be committed)
 **/service_helm_charts/
+
+# Per-session experiment prefix cache (workspace/script/.experiment_id)
+.experiment_id
