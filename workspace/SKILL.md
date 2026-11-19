@@ -10,11 +10,6 @@ Execute service-management intents directly using the `k8s_manager` HTTP API.
 Do not generate code for the user. Execute the workflow.
 When a predefined function exists (see "Predefined Python Utilities" at the bottom of this file), import and use it instead of directly calling the API.
 
-<!-- DEBUG mode is OFF!
-
-Do not use hardcoded Kafka or OSEF addresses. The values that used to be listed
-here (`10.2.0.163:29092`, `http://10.2.0.164:8081`, `tcp://192.168.2.10`) belong to the local mock and are wrong for the real cluster, which publishes its own addresses in `possible_values`. Resolve these values per service at deploy time from `get_service_env_schema`, as described under "Required env vars" below. -->
-
 ## Capabilities
 
 Understand natural-language intent and choose one capability:
@@ -46,12 +41,9 @@ Keep the feedback to the user concise.
 - `possible_values` outranks anything you see on a running instance. Other instances legitimately run with values outside their published list - `KAFKA_DEST_BOOTSTRAP_SERVER=localhost:19092` is a per-pod sidecar address, correct for those services and wrong for a new one. Copying it points the new instance at a broker that does not exist for it.
 - Match the catalogue's casing character for character. Zone IDs are mixed-case (`C5_w`, `L1_n_ws`, `L10_all_e`) and the services compare them literally, so `C5_W` is a different, non-existent zone. Never upper-case or lower-case a published value.
 - Respect the declared `type`. `OBJECT_TYPE_FILTER` and `ZONES_OF_INTEREST` are `type: list`: pass a real list such as `["PERSON"]` or `["L1_n_ws", "L2_n_s"]`. A bare `PERSON`, or a comma-joined `L1_n_ws,L2_n_s`, is not a list. The helper functions encode lists correctly for the API, so hand them the list and do not pre-format it.
-4. Generate a sensible deployment plan and check against the current cluster state. Fill out all the required env values from the plan. If 
-5. Print out the final deployment plan, then ask user to confirm before proceeding. If confirmed, deploy each service in order with `create_instance(service_name, env_vars=...)`. Do not hand-write `POST /instances`.
-6. Stop on first failure and return partial results.
 
 
-<!-- 4. **Spatial reasoning (conditional).** If the selected service(s) accept zone-typed env vars (e.g. `FROM_ZONE`, `TO_ZONE`, `CROSSWALK_ZONE`, `APPROACH_ZONES`, `ZONES_OF_INTEREST`) AND the user intent does not contain canonical zone IDs (matching `^[LCISBE]+\d+_`), delegate to the `gate-spatial-reasoning` sub-agent.
+4. **Spatial reasoning (conditional).** If the user intent does NOT contain canonical zone IDs (matching `^[LCISBE]+\d+_`) AND the selected service(s) accept zone-typed env vars (e.g. `FROM_ZONE`, `TO_ZONE`, `CROSSWALK_ZONE`, `APPROACH_ZONES`, `ZONES_OF_INTEREST`), delegate to the `gate-spatial-reasoning` sub-agent.
 
    - Folder path to delegate to: exactly `gate-spatial-reasoning`. It sits
      directly under `/workspace`. Never prefix it with this skill's own name and
@@ -110,9 +102,9 @@ Background rule: build the full canonical set internally from the actual selecte
       }
     ]
   }
-  ``` -->
+  ```
 
-<!-- 7. Get the current cluster state, then compare the plans against it. Call `get_running_instances()` from `/workspace/script/util.py` first. Never assume or invent what is running, and never reuse a list of instances from an earlier turn: fetch it.
+7. Get the current cluster state, then compare the plans against it. Call `get_running_instances()` from `/workspace/script/util.py` first. Never assume or invent what is running, and never reuse a list of instances from an earlier turn: fetch it.
 
 - Ask the user if they want to proceed to check all the alternative deployment plans against services that are already deployed. If yes, for each service in a plan, check whether an instance with matching env is already deployed: call `is_service_deployed(expected)` from `/workspace/script/util.py`. Only include the essential variables in the expected dict - ignore those with default values, those you are not certain about, and those related to `KAFKA`. If no instance is found, add the current service to `to_deploy` in post-order.
 - `is_service_deployed` reports a match on env values only. Check `matched_instance.ready` before counting an instance as reusable: an instance scaled to zero still matches on env but is not running.
@@ -120,9 +112,9 @@ Background rule: build the full canonical set internally from the actual selecte
 8. Based on the information from step 7, use the full internal set of alternative deployment plans and find the 3 best alternatives - meaning the plans that will re-use the most deployed instances. Ask the user to select one of the alternatives to proceed. If there is only one valid plan, tell that to the user and proceed to step 9. If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
 9. Show to-be-deployed lists, then ask: `Proceed with deployment? (yes/no)`. 
 10. If confirmed, deploy each service in order with `create_instance(service_name, env_vars=...)`. Do not hand-write `POST /instances`.
-11. Stop on first failure and return partial results. -->
+11. Stop on first failure and return partial results.
 
-<!-- If DEBUG mode is ON: stop at step 3 to show inital services, at each iteration of DFS to show current node, env plan, and satisfiability check result, and ask users to continue. -->
+
 
 #### Determinism rules
 
@@ -211,15 +203,13 @@ Rules:
 ## What we already know:
 
 - Skip the variable checks for lidar-osef-data-streamer, osef-tracked-objects, osef-zones, because they are always deployed with default variables. Tell the users that they are deployed, and do not need to be re-deployed.
-<!-- - `KAFKA`-related env vars do not need to be shown to the user or compared when checking for existing instances. They still have to be RESOLVED and submitted: most of them are required, their catalogue defaults are empty, and an instance deployed without them crash-loops. Fill them from `possible_values` per the "Required env vars" section. -->
+- `KAFKA`-related env vars do not need to be shown to the user unless specified or compared when checking for existing instances. They still have to be RESOLVED and submitted: most of them are required, their catalogue defaults are empty, and an instance deployed without them crash-loops. Fill them from `possible_values` per the "Required env vars" section.
 - All object types supported: "TRUCK","CAR","TWO-WHEELER","UNKNOWN", "PERSON". For pedestrian, use "PERSON".
-<!-- - if service `object-in-zone-detection` is recently deployed by you, always consider re-deploy it with new variable values. If this is the case, tell the user you can re-deploy, and if confirmed, prefer `update_instance(instance_name, env_vars=...)` to change it in place; only fall back to deploying a new instance and removing the old one if the configuration cannot be updated -->
 - no need to wait and check the deployment results, we have dedicated workflow for that. Just trigger the deployment and return.
 - for intents involving pedistrian walking cross a zone, use object-in-zone-detection with `OBJECT_TYPE_FILTER=["PERSON"]`
 - use 6 m/s as default high-speed.
 - crosswalk-safety-alert needs two instances of object-in-zone-detection with different env values: one for pedestrian with `OBJECT_TYPE_FILTER=["PERSON"]` and another for vehicles with `OBJECT_TYPE_FILTER` set to "TRUCK","CAR","TWO-WHEELER","UNKNOWN", each with relevant zones.
 - when the intent is about illegal pedestrian, no need for cross-walk-safety-alert. Also try to reuse object-in-zone-detection witht he same zone, and add PERSON into the object types.
-<!-- - For zone-related env vars on the Sofia intersection, never ask the user for raw zone IDs. Always delegate to the `gate-spatial-reasoning` folder first (that exact folder path, directly under `/workspace`). -->
 - `read_file`, `write_file` and `list_dir` resolve relative paths from the calling agent's own folder. Pass a bare filename, never a path that repeats the folder name, or it will be appended twice and fail.
 
 ## Predefined Python Utilities
@@ -270,7 +260,7 @@ The functions already return reduced payloads. Extract only the fields the
 current step needs rather than printing whole objects; large output is
 truncated before you see it.
 
-<!-- #### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
+#### `generate_deployment_plans(fixed_services: list, service_variants: list) -> dict`
 
 Purpose:
 
@@ -314,7 +304,7 @@ Rules:
   the two-variant crosswalk scenario in step 5 alone produces over 2000 plans.
   Never print, echo, or serialize the full set, and never write it to a file in
   `/workspace`. Read `len(result["plans"])` for the count and index the few you
-  intend to show. -->
+  intend to show.
 
 #### `get_deployable_services_basic() -> dict`
 
