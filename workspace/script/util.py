@@ -207,10 +207,14 @@ def find_all_plans(
     valid_instances: list[dict[str, Any]], need: set[tuple[str, str]]
 ) -> list[list[dict[str, Any]]]:
     need = frozenset(need)
+    # sorted(): dict insertion order must not depend on the hash seed
     by_edge = {
         edge: [inst for inst in valid_instances if edge in inst["covers"]]
-        for edge in need
+        for edge in sorted(need)
     }
+    # and each candidate list needs a stable order of its own
+    for edge, candidates in by_edge.items():
+        candidates.sort(key=lambda inst: (tuple(sorted(inst["types"])), tuple(sorted(inst["zones"]))))
     plans: list[list[dict[str, Any]]] = []
 
     def backtrack(
@@ -219,7 +223,9 @@ def find_all_plans(
         if not remaining:
             plans.append(list(chosen))
             return
-        edge = min(remaining, key=lambda item: len(by_edge[item]))
+        # most-constrained edge first; the edge itself breaks ties so the
+        # choice does not fall back on frozenset iteration order
+        edge = min(remaining, key=lambda item: (len(by_edge[item]), item))
         for inst in by_edge[edge]:
             if inst["covers"] <= remaining:
                 chosen.append(inst)
@@ -319,6 +325,19 @@ def generate_deployment_plans(
         scenario["types"], scenario["zones"], scenario["need"]
     )
     plans = find_all_plans(valid_instances, scenario["need"])
+
+    # Fewest instances first
+    def _plan_sort_key(plan: list[dict[str, Any]]) -> tuple[Any, ...]:
+        signature = tuple(
+            sorted(
+                (tuple(sorted(inst["types"])), tuple(sorted(inst["zones"])))
+                for inst in plan
+            )
+        )
+        return (len(plan), signature)
+
+    plans.sort(key=_plan_sort_key)
+
     generated: list[dict[str, Any]] = []
     for index, plan in enumerate(plans, start=1):
         plan_services: list[dict[str, Any]] = []
