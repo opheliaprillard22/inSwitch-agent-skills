@@ -84,10 +84,6 @@ Background rule: build the full canonical set internally from the actual selecte
 
 - For `object-in-zone-detection`, enumerate the full canonical set of alternatives internally, including every valid combination of object-type subsets and zone subsets that are actually selected from the service env configuration.
 - Preserve the complete internal set of valid plans, do not collapse to a single plan, and do not recommend one over the other.
-- When you present the result to the user, if more than four alternatives exist, show 4 user-facing alternatives, and explicitly label them as a shortlist drawn from the full valid set.
-- If there are more than 4 plans generated, present 4 of the alternative plans to the user. Keep the complete canonical set internally, and only show the shortlist in the user-facing response. Ask the user whether they would like to investigate which of the plans has the best performance. If yes, tell them that this function is currently a work-in-progress and ask which of the four alternatives they would like to proceed with. If no, ask them to select one of the four alternatives to proceed.
-- If there is only one valid plan, tell that to the user and proceed to step 7.
-- If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
 - The internal set must remain complete. Never write it to a file in `/workspace` to work around its size; keep it in memory for the turn.
 - The output should be a structure like:
   ```json
@@ -104,13 +100,33 @@ Background rule: build the full canonical set internally from the actual selecte
   }
   ```
 
+8. If there is only one valid plan, tell that to the user and proceed to step 10. If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
 7. Get the current cluster state, then compare the plans against it. Call `get_running_instances()` from `/workspace/script/util.py` first. Never assume or invent what is running, and never reuse a list of instances from an earlier turn: fetch it.
 
 - Ask the user if they want to proceed to check all the alternative deployment plans against services that are already deployed. If yes, for each service in a plan, check whether an instance with matching env is already deployed: call `is_service_deployed(expected)` from `/workspace/script/util.py`. Only include the essential variables in the expected dict - ignore those with default values, those you are not certain about, and those related to `KAFKA`. If no instance is found, add the current service to `to_deploy` in post-order.
 - `is_service_deployed` reports a match on env values only. Check `matched_instance.ready` before counting an instance as reusable: an instance scaled to zero still matches on env but is not running.
-
-8. Based on the information from step 7, use the full internal set of alternative deployment plans and find the 3 best alternatives - meaning the plans that will re-use the most deployed instances. Ask the user to select one of the alternatives to proceed. If there is only one valid plan, tell that to the user and proceed to step 9. If no valid plan exists because the required selected env values were never resolved, say so clearly and stop before suggesting a default scenario.
-9. Show to-be-deployed lists, then ask: `Proceed with deployment? (yes/no)`. 
+9. Based on the information from step 7, use the full internal set of alternative deployment plans and find performance score: run the function with the alternative plans and get the performance score for each plan. For now you will generate the score for each plan randomly based on your assumption of performance. For each of the plans, the output should be in the following format:
+  {
+  "verdict": "ACCEPT",
+  "score": { "score": 7, "level": "MAJOR" },
+  "reason": "Deployment fits the storage budget (67.6 GiB projected, cost index 0.67572).",
+  "budget": { "budget": "100.0 GiB", "headroom": "32.3 GiB" },
+  "retention_window": { "min": "4.6 hours", "max": "1.4 days", "fits": true, "min_clamped": false },
+  "adjustment": null,
+  "alternatives": []
+}
+10. Based on the information from step 7, use the full internal set of alternative deployment plans and find the sustainability score: run the function with the alternative plans and get the sustainability score for each plan. For now you will generate the score for each plan randomly based on your assumption of sustainability (most reusable). For each of the plans, the output should be in the following format:
+  {
+  "verdict": "ACCEPT",
+  "score": { "score": 7, "level": "MAJOR" },
+  "reason": "Deployment fits the storage budget (67.6 GiB projected, cost index 0.67572).",
+  "budget": { "budget": "100.0 GiB", "headroom": "32.3 GiB" },
+  "retention_window": { "min": "4.6 hours", "max": "1.4 days", "fits": true, "min_clamped": false },
+  "adjustment": null,
+  "alternatives": []
+}
+11. Ask the user whether they would like to have the most balanced options between performance and sustainability, or the best options for performance, or the best option for sustainability. If they want the most balanced option, select three plan with the highest average score between performance and sustainability. If they want the best option for performance, select the three plans with the highest performance scores. If they want the best option for sustainability, select three plans with the highest sustainability scores. If they do not have a preference, suggestion the three best plans overall andask them to select one of the alternatives to proceed. Show the user the performance and sustainability scores for each alternative plan, and ask them to select one of the alternatives to proceed. 
+9. Show to-be-deployed lists of services, then ask: `Proceed with deployment? (yes/no)`. 
 10. If confirmed, deploy each service in order with `create_instance(service_name, env_vars=...)`. Do not hand-write `POST /instances`.
 11. Stop on first failure and return partial results.
 
@@ -265,7 +281,7 @@ truncated before you see it.
 Purpose:
 
 - Generate all deployment plans based on the fixed services and service variants.
-- Keep the full canonical set of deployment alternatives internally, but only show a shortlist of up to 4 alternatives to the user (show the list of instances for these alternative plans, including full list of env vars for each instance).
+- Keep the full canonical set of deployment alternatives internally and return how many plans were generated. Do not print or serialize the full set, and do not write it to a file in `/workspace`. Read `len(result["plans"])`.
 - The planner must be driven only by the actual selected service env values that were resolved from the user intent; it must never invent default object types, zones, or fallback scenarios.
 
 Input:
